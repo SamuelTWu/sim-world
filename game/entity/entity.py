@@ -105,8 +105,8 @@ class Entity:
         return sum(self.inventory.values())
 
     def effective(self, name: str, default: float | None = None) -> float:
-        value = self.prop(name, default)
+        bonus = sum(status.strength for status in self.statuses if status.name == f"{name}_mod") + self.components.get("env_mods", {}).get(name, 0.0)
 
-        return value * (1.0 + sum(status.strength for status in self.statuses if status.name == f"{name}_mod"))
+        return self.prop(name, default) * max(0.0, 1.0 + bonus)
 
     

@@ -14,11 +14,11 @@ class Game:
         self.running = True
 
         self.generation_settings = GenerationSettings(
-            width=400, 
-            height=400, 
+            width=200, 
+            height=200, 
             seed=None, 
             debug=True, 
-            tag_modifiers={"all": {"scale": 1.6}}
+            tag_modifiers={"all": {"scale": 1.3}}
             )
 
         self.generator = WorldGenerator(self.generation_settings)
@@ -38,13 +38,18 @@ class Game:
         self.world = self.generator.generate()
         self.entity_manager = EntityManager()
 
-        self.systems = SystemRunner(self.world, self.entity_manager, self.behavior_manager)
+        self.systems = SystemRunner(self.world, self.entity_manager, self.behavior_manager, maps=self.generator.maps)
         self.systems.events.on("tile_placed", self.on_tile_placed)
 
-        blueprint = self.entity_manager.entity_factory.load_definition("pixel")
-        for _ in range(20):
-            pixel = self.systems.spawn_blueprint(blueprint)
-            pixel.position = Vec3((random.randint(2, self.world.width - 2) + 0.5) * TILE_UNITS, (random.randint(2, self.world.height - 2) + 0.5) * TILE_UNITS, 0.0)
+        water = self.entity_manager.entity_factory.load_definition("pixel_swimmer")
+        grass = self.entity_manager.entity_factory.load_definition("pixel_runner")
+        for _ in range(150):
+            pixel = self.systems.spawn_blueprint(water)
+            pixel.position = Vec3((random.randint(2, int(self.world.width/2) ) ) * TILE_UNITS, (random.randint(2, self.world.height - 2)) * TILE_UNITS, 0.0)
+
+            pixel = self.systems.spawn_blueprint(grass)
+            pixel.position = Vec3((random.randint(int(self.world.width/2), int(self.world.width) - 1) ) * TILE_UNITS, (random.randint(2, self.world.height - 2)) * TILE_UNITS, 0.0)
+            
 
     def on_tile_placed(self, x, y, tile, **_):
         stored = self.world.get_tile(x, y)

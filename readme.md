@@ -69,10 +69,14 @@ Plant	Immobile, converts sunlight tile → energy, spawns seeds on a timer
 - tile_types.py
 
 TODO: 
-make tile specific/feature specific attributes (move faster in water, more stealth in desert,etc)
-how to optimize pixel behavior/ make it scale well. Are there games that can run on a basic machine (mac/pc) that run this many entities? (fortnight)
-idea of trading by having pixels drop items to other pixels. 
-being able to trigger events using mouse (click pixel, make it drop object. click in general area of pixels, make them attack, drag click highlight pixels, make them come back to base)
-Make spawner entity, player id
+
+- 
+- how to optimize pixel behavior/ make it scale well. Are there games that can run on a basic machine (mac/pc) that run this many entities? (fortnight)
+- idea of trading by having pixels drop items to other pixels. 
+- being able to trigger events using mouse (click pixel, make it drop object. click in general area of pixels, make them attack, drag click highlight pixels, make them come back to base)
+- Make spawner entity, player id
+- spawn pixels, make them fight
+- make pixels be able to carry other pixels
+- add borders to pixels (based on player id)
 
 

@@ -41,6 +41,7 @@ class FeatureManager:
         world = context.world
         debug = context.settings.debug
         features = list(self.features.values())
+        world.feature_grid = [[None] * world.width for _ in range(world.height)]
 
         for feature in features:
             feature.initialize_generation(context)
@@ -64,6 +65,8 @@ class FeatureManager:
 
                 if feature is None:
                     continue
+                
+                world.feature_grid[y][x] = feature.name
 
                 tile = feature.generate_tile(context, x, y)
 

@@ -16,7 +16,8 @@
     "props": {
         "agility": 0.9,
         "patience": 0.8,
-        "snap_to_grid": 16
+        "snap_to_grid": 16,
+        "owner":"team2"
     },
     "needs": {
         "hunger": {"value": 0.2, "rate": 0.01},

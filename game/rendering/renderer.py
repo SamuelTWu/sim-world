@@ -93,6 +93,10 @@ class Renderer:
 
         return surface
 
+    def set_world_pixel(self, x, y, color):
+        if self.world_surface is not None:
+            self.world_surface.set_at((x, y), color)
+
     def render_world(self, world):
         if self.cached_world is not world:
             self.world_surface = self.build_world_surface(world)

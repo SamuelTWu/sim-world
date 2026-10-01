@@ -1,8 +1,15 @@
+from copy import deepcopy
 from pathlib import Path
 import json
 
-from ..entity import Entity, Sprite, MovementProfile, Physics, Material
-from ..entity_systems.needSystem import Need
+from ..entity import Entity, Sprite, Vec3
+from ..system.needSystem import Need
+
+LEGACY_PROPS = {
+    "movement": {"maxSpeed": "max_speed", "reach": "reach", "grabReach": "grab_reach", "climbSpeed": "climb_speed"},
+    "physics": {"mass": "mass", "friction": "friction"},
+    "material": {"flammable": "flammable", "edible": "edible", "smellStrength": "smell", "conductivity": "conductivity", "absorbency": "absorbency"},
+}
 
 
 class EntityFactory:
@@ -12,69 +19,59 @@ class EntityFactory:
 
     def load_definition(self, name: str):
         if name not in self.definitions:
-            path = self.definitions_path / f"{name}.json"
-
-            with open(path, "r") as file:
+            with open(self.definitions_path / f"{name}.json", "r") as file:
                 self.definitions[name] = json.load(file)
 
         return self.definitions[name]
 
-    def create(self, name: str, entity_id: int) -> Entity:
-        definition = self.load_definition(name)
+    def create(self, name: str, entity_id: int, owner: int | None = None) -> Entity:
+        return self.build(self.load_definition(name), entity_id, blueprint_name=name, owner=owner)
 
+    def create_from_blueprint(self, blueprint: dict, entity_id: int, owner: int | None = None) -> Entity:
+        return self.build(blueprint, entity_id, blueprint_name=blueprint.get("name"), owner=owner)
+
+    def build(self, definition: dict, entity_id: int, blueprint_name: str | None = None, owner: int | None = None) -> Entity:
         sprite = definition.get("sprite", {})
-        movement = definition.get("movement", {})
-        physics = definition.get("physics", {})
-        material = definition.get("material", {})
+
+        max_health = definition.get("maxHealth", definition.get("health", 1.0))
+        max_energy = definition.get("maxEnergy", definition.get("energy", 1.0))
+
+        props = {name: definition[section][key] for section, keys in LEGACY_PROPS.items() for key, name in keys.items() if key in definition.get(section, {})}
+        props.update(definition.get("props", {}))
+        
 
         entity = Entity(
             id=entity_id,
             sprite=Sprite(
+                shape=deepcopy(sprite.get("shape")),
                 image=sprite.get("image"),
                 character=sprite.get("character"),
                 color=tuple(sprite.get("color", [255, 255, 255])),
                 size=tuple(sprite.get("size", [16, 16])),
                 layer=sprite.get("layer", 0),
             ),
-            movement=MovementProfile(
-                max_speed=movement.get("maxSpeed", 0.0),
-                acceleration=movement.get("acceleration", 0.0),
-                deceleration=movement.get("deceleration", 0.0),
-                jump_impulse=movement.get("jumpImpulse", 0.0),
-                air_control=movement.get("airControl", 0.0),
-                gravity=movement.get("gravity", 0.0),
-                traction=movement.get("traction", 0.0),
-                friction=movement.get("friction", 0.0),
-                turn_rate=movement.get("turnRate", 0.0),
-                reach=movement.get("reach", 0.0),
-                grab_reach=movement.get("grabReach", 0.0),
-                climb_speed=movement.get("climbSpeed", 0.0),
-                can_air_control=movement.get("canAirControl", False),
-                can_attach=movement.get("canAttach", False),
-                can_climb=movement.get("canClimb", False),
-                can_swing=movement.get("canSwing", False),
-                anchor=movement.get("anchor", 0.0),
-                charge=movement.get("charge", 0.0),
-            ),
-            physics=Physics(
-                mass=physics.get("mass", 1.0),
-                rigid=physics.get("rigid", True),
-                friction=physics.get("friction", 1.0),
-            ),
-            material=Material(
-                flammable=material.get("flammable", 0.0),
-                edible=material.get("edible", 0.0),
-                smell_strength=material.get("smellStrength", 0.0),
-                conductivity=material.get("conductivity", 0.0),
-                absorbency=material.get("absorbency", 0.0),
-            ),
-            attributes=definition.get("attributes", {}).copy(),
-            components=definition.get("components", {}).copy(),
+            props=props,
+            components=deepcopy(definition.get("components", {})),
+            name=definition.get("name", blueprint_name or "pixel"),
+            kind=definition.get("kind", "pixel"),
+            blueprint_name=blueprint_name,
+            owner=owner if owner is not None else definition.get("owner"),
+            traits=deepcopy(definition.get("traits", {})),
+            tags=set(definition.get("tags", [])),
+            inventory=dict(definition.get("inventory", {})),
+            health=definition.get("currentHealth", max_health),
+            max_health=max_health,
+            energy=definition.get("currentEnergy", max_energy),
+            max_energy=max_energy,
+            visible=definition.get("visible", True),
         )
 
-        for name, data in definition.get("needs", {}).items():
-            entity.needs[name] = Need(
-                name=name,
+        if "home" in definition:
+            entity.home = Vec3(*definition["home"])
+
+        for need_name, data in definition.get("needs", {}).items():
+            entity.needs[need_name] = Need(
+                name=need_name,
                 value=data.get("value", 0.0),
                 rate=data.get("rate", 0.0),
                 minimum=data.get("minimum", 0.0),

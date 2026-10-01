@@ -2,7 +2,7 @@ from ..tile import Tile, State
 
 BRICK = Tile(
     name="brick",
-    color=[(156, 74, 58), (146, 66, 52), (166, 82, 64)],
+    color=(189, 105, 66),
     hardness=3.0,
     collision=1.0,
     state=State.SOLID,

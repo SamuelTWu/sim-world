@@ -1,16 +1,12 @@
 import random
-import pygame
 
 from .rendering.renderer import Renderer
 from .world.generator import WorldGenerator, GenerationSettings
 from .entity.entityManager import EntityManager
-from .entity.entity_systems.systemRunner import SystemRunner
+from .entity.behavior.behaviorManager import BehaviorManager
+from .entity.system.systemRunner import SystemRunner
+from .entity.system.simContext import TILE_UNITS
 from .entity.entity import Vec3
-
-#CHANGE THIS TO AN ACTIONS MANAGER
-from .entity.actions.wander import register_wander
-from .entity.actions.build import register_build
-from .entity.actions.reactions import register_reactions
 
 
 class Game:
@@ -18,23 +14,21 @@ class Game:
         self.running = True
 
         self.generation_settings = GenerationSettings(
-            width=100, 
-            height=100, 
+            width=400, 
+            height=400, 
             seed=None, 
             debug=True, 
-            tag_modifiers={"all":{"scale": 1}}
+            tag_modifiers={"all": {"scale": 1.6}}
             )
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = None
 
         self.entity_manager = EntityManager()
+        self.behavior_manager = BehaviorManager()
         self.systems = None
 
-        self.renderer = Renderer(
-            width=1400,
-            height=900,
-        )
+        self.renderer = Renderer(width=1400, height=900)
 
     def start_new_game(self, seed=None):
         if seed is not None:
@@ -44,19 +38,17 @@ class Game:
         self.world = self.generator.generate()
         self.entity_manager = EntityManager()
 
-        self.systems = SystemRunner(self.world, self.entity_manager)
-        #change this, to an actions register
-        register_build(self.systems)
-        #register_wander(self.systems)
-        
-        register_reactions(self.systems)
+        self.systems = SystemRunner(self.world, self.entity_manager, self.behavior_manager)
+        self.systems.events.on("tile_placed", self.on_tile_placed)
 
-        ant = self.entity_manager.spawn("ant")
-        ant.position = Vec3(random.uniform(0, self.generation_settings.width), random.uniform(0, self.generation_settings.height), 0.0)
+        blueprint = self.entity_manager.entity_factory.load_definition("pixel")
+        for _ in range(20):
+            pixel = self.systems.spawn_blueprint(blueprint)
+            pixel.position = Vec3((random.randint(2, self.world.width - 2) + 0.5) * TILE_UNITS, (random.randint(2, self.world.height - 2) + 0.5) * TILE_UNITS, 0.0)
 
-        tile_x, tile_y = int(ant.position.x // 32), int(ant.position.y // 32)
-        ant.components["blueprint"] = [(tile_x + i, tile_y, "stone_brick") for i in range(5)]
-        self.systems.initialize()
+    def on_tile_placed(self, x, y, tile, **_):
+        stored = self.world.get_tile(x, y)
+        self.renderer.cached_world = None
 
     def update(self, delta_time):
         if self.world is not None:
@@ -64,16 +56,16 @@ class Game:
             self.world.update(delta_time)
 
     def run(self):
-        
+        self.start_new_game()
 
         while self.running:
             delta_time = self.renderer.tick(60)
 
             self.running = self.renderer.handle_events()
-            
+
             if not self.running:
                 break
-    
+
             if self.renderer.restart_requested:
                 self.renderer.restart_requested = False
                 self.start_new_game()
@@ -82,11 +74,6 @@ class Game:
             self.renderer.update(delta_time)
 
             if self.world is not None:
-                self.renderer.render(
-                    self.world,
-                    self.generator.maps,
-                    self.generator.features,
-                    self.entity_manager.all(),
-                )
+                self.renderer.render(self.world, self.generator.maps, self.generator.features, self.entity_manager.all())
 
         self.renderer.close()

@@ -36,29 +36,43 @@ The key files are below:
     favor_scale: controls how big the favored and suppressed regions are. Smaller values give continent-sized regions, and larger ones give patchy variation. Give commonly competing features different scales so their favored regions don't line up.
 
 ### Entities
-- entity.py
-- entityManager.py
-- entity_types.py
-- entityFactory.py
-- attributeSystem.py
-- decisionSystem.py
-- memorySystem.py
-- needSystem.py
-- relationshipSystem.py
-- systemRunner.py
+    ok, i have a new concept for entities. I want there to be only 1 entity called pixel. First, pixels are kind of like pikmin, spawning and then moving around randomly. But, by chaning by changing its properties/behaviors, it can become anything: warriors, bullets, spawners, plants, miners, spies, bombs, livestock, birds, mechanisms, etc. The end goal is to make pixel something players can add/edit properties/behaviors of IN GAME, in order to create everything in the game. In that way, you unlock the ability to edit certain properties/behaviors, and then editing those properties/behaviors will cost currency. Additionally, players can save configs IN GAME, to create their own 'blueprints' that can be used to instantly spawn that pixel. features include:
+    - interacting with mouse clicks
+    - being able to get aggroed
+    - being able to spawn other pixels
+    - moving around
+    - being aware of its environment
+    - visibility (can turn invisible)
+    - gathering resources
+    - attacking other pixels
+    - influencing other pixel's behaviors
+    This game will then be like Civ 5 or Polytopia, in that you build civilizations and control units, but in this case it is more open world. Player compete to grow their civilization and complete one of a couple of objectives. 
 
-    This looks complicated, but entity behavior is quite simple. The entity has a list of tasks it wants accomplish, scores those tasks, chooses one, then tries to accomplish that task. Every so often, it reevaluates and the cycle loops. 
+### Tech Tree:
+Every properties/behavior should be one of four kinds, so players learn one grammar:
 
-    This somewhat convoluted cycle helps me accomplish 3 things:
-    1) The entity system us so abstract that I can (somewhat) easily implement ANY behavior. This is not just simple enemy move, dodge, track behavior, but also more niche concepts, like conways game of life rules, or population growth simulation, etc. I want to be able to create anything, and have them interact. 
+Body: passive stats like health, speed, size, lifespan and capacity.
+Sense: what the pixel can perceive (range, filter, hidden things).
+Action: something it can do (move, extract, attack, spawn, build).
+Reaction: "when X happens, do Y" (on death, on contact, on timer, when hurt). This is the "edge of coding" part, and it stays data-shaped, with no scripting.
 
-    2) A big goal of this project is to have entities build complex and INTERESTING procedural structures. I want to use wave function collapse ANDO/OR graph grammers. And i dont want them to simply generate, i want them to ATTEMPT to build them, which can go wrong, and also get angry if other entities build in their territory, or gather resources, etc. 
-
-    3) This system allows for easy *emergent behavior*, through interactions, conflict, and cooperation. Entities are able to store memory, have a personality, and react to others.
+Player idea	Decomposed
+Stone factory	Immobile, stands on a stone tile, converts tile → stone resource (cost: energy)
+Cow	Wanders, eats pixels tagged "grass" → energy, turns energy → milk resource, spawns a calf when energy is high
+Bomb	Moves toward the nearest pixel, reaction: on contact → area damage + die
+Spy	Stealth, high speed, sight, no attack, reaction: on seeing → report to owner
+Spawner	Immobile, converts resource → new pixel from a saved blueprint
+Plant	Immobile, converts sunlight tile → energy, spawns seeds on a timer
 
 ### Tiles:
 - tile.py
 - tile_types.py
 
-TODO: make sprites for tiles
-TODO: make more variety in mapsssss. I dont want it to all be the same thing, some regions need some specifics....
+TODO: 
+make tile specific/feature specific attributes (move faster in water, more stealth in desert,etc)
+how to optimize pixel behavior/ make it scale well. Are there games that can run on a basic machine (mac/pc) that run this many entities? (fortnight)
+idea of trading by having pixels drop items to other pixels. 
+being able to trigger events using mouse (click pixel, make it drop object. click in general area of pixels, make them attack, drag click highlight pixels, make them come back to base)
+Make spawner entity, player id
+
+

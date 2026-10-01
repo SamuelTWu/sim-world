@@ -1,0 +1,70 @@
+{
+    "name": "pixel",
+    "tags": ["pixel"],
+    "health": 1.0,
+    "energy": 1.0,
+    "sprite": {
+        "shape": [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]], 
+        "color": [80, 50, 20], 
+        "size": [16, 16], 
+        "layer": 1
+    },
+    
+    "traits": {
+        "roam": {"speed": 1.0, "reach": 160.0}
+    },
+    "movement": {
+        "maxSpeed": 1.0,
+        "acceleration": 8.0,
+        "deceleration": 10.0,
+        "jumpImpulse": 0.0,
+        "airControl": 0.0,
+        "gravity": 9.81,
+        "traction": 1.0,
+        "friction": 1.0,
+        "turnRate": 8.0,
+        "reach": 0.5,
+        "grabReach": 0.5,
+        "climbSpeed": 1.5,
+        "canAirControl": false,
+        "canAttach": true,
+        "canClimb": true,
+        "canSwing": false,
+        "anchor": 0.0,
+        "charge": 0.0
+    },
+    "physics": {
+        "mass": 0.01,
+        "rigid": true,
+        "friction": 1.0
+    },
+    "material": {
+        "flammable": 0.2,
+        "edible": 0.0,
+        "smellStrength": 0.8,
+        "conductivity": 0.0,
+        "absorbency": 0.2
+    },
+    "props": {
+        "strength": 0.2,
+        "speed": 0.7,
+        "agility": 0.9,
+        "charisma": 0.1,
+        "patience": 0.8,
+        "courage": 0.6,
+        "curiosity": 0.4,
+        "aggression": 0.2,
+        "stress": 0.1,
+        "snap_to_grid": 16
+    },
+    "needs": {
+        "hunger": {"value": 0.2, "rate": 0.01},
+        "thirst": {"value": 0.2, "rate": 0.01},
+        "safety": {"value": 0.1, "rate": 0.005},
+        "exploration": {"value": 0.3, "rate": 0.001},
+        "construction": {"value": 0.0, "rate": 0.0}
+    },
+    "components": {
+        "species": "pixel"
+    }
+}

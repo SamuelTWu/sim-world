@@ -3,6 +3,7 @@
     "tags": ["pixel", "runner"],
     "health": 1.0,
     "energy": 1.0,
+    "owner":2,
     "sprite": {
         "shape": [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]],
         "color": [90, 190, 70],
@@ -16,7 +17,6 @@
     "props": {
         "agility": 0.9,
         "patience": 0.8,
-        "owner":"team1",
         "snap_to_grid": 16
     },
     "needs": {

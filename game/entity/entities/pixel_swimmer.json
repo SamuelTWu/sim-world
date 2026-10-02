@@ -3,6 +3,7 @@
     "tags": ["pixel", "swimmer"],
     "health": 1.0,
     "energy": 1.0,
+    "owner":1,
     "sprite": {
         "shape": [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]],
         "color": [50, 120, 220],
@@ -16,8 +17,7 @@
     "props": {
         "agility": 0.9,
         "patience": 0.8,
-        "snap_to_grid": 16,
-        "owner":"team2"
+        "snap_to_grid": 16
     },
     "needs": {
         "hunger": {"value": 0.2, "rate": 0.01},

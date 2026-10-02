@@ -19,8 +19,6 @@ class Sprite:
 
 DEFAULT_SPRITE = Sprite()
 
-# sprite_id -> how to draw it. Fill these in from your existing entity definitions.
-# Example: "pixel_swimmer": Sprite(color=(40, 120, 255), layer=1),
 SPRITES: dict[str, Sprite] = {
     "pixel": Sprite(),
 }

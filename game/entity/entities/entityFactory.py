@@ -21,9 +21,7 @@ class EntityFactory:
         if name not in self.definitions:
             with open(self.definitions_path / f"{name}.json", "r") as file:
                 definition = json.load(file)
-
-            # Every definition gets a sprite_id (default: its file name). The "sprite"
-            # block in the JSON is visual data that only the client reads (rendering/sprites.py).
+                
             definition.setdefault("sprite_id", name)
             self.definitions[name] = definition
 

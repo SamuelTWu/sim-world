@@ -27,16 +27,6 @@ class Vec3:
 
 
 @dataclass
-class Sprite:
-    shape: list | None = None
-    image: str | None = None
-    character: str | None = None
-    color: tuple[int, int, int] = (255, 255, 255)
-    size: tuple[int, int] = (16, 16)
-    layer: int = 0
-
-
-@dataclass
 class StatusEffect:
     name: str
     duration: float
@@ -49,7 +39,7 @@ class StatusEffect:
 class Entity:
     id: int
     position: Vec3 = field(default_factory=Vec3)
-    sprite: Sprite = field(default_factory=Sprite)
+    sprite_id: str = "pixel"  # plain string; only the renderer knows what it looks like (see rendering/sprites.py)
     name: str = "pixel"
     kind: str = "pixel"
     blueprint_name: str | None = None
@@ -108,5 +98,3 @@ class Entity:
         bonus = sum(status.strength for status in self.statuses if status.name == f"{name}_mod") + self.components.get("env_mods", {}).get(name, 0.0)
 
         return self.prop(name, default) * max(0.0, 1.0 + bonus)
-
-    

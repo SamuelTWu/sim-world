@@ -11,7 +11,9 @@ The key files are below:
 
 ### Rendering:
 - camera.py
+- entity_renderer.py
 - renderer.py
+- world_renderer.py
 
     The rendering system is split between camera.py and renderer.y: Camera manages the viewport position, zoom, keyboard movement, mouse dragging, coordinate conversion between world pixels and screen pixels, visible tile bounds, and hovered-tile detection, while Renderer owns the Pygame display and uses the camera to draw only the currently visible portion of the world. The world uses a fixed TILE_SIZE of 32 pixels, with each tile converted from world coordinates to screen coordinates through Camera.world_to_screen(), and zooming changes both the displayed tile size and entity sizes without changing the underlying world coordinates. Renderer.render() chooses between the normal world view, a map-debug view, or a biome-debug view, then optionally draws entities on top; entities are sorted by their sprite layer before rendering and can use either cached image sprites or simple procedurally drawn characters such as ants. Map and biome debug modes are cycled with M and B, respectively, while the camera handles WASD movement, left-mouse dragging, and mouse-wheel or keyboard zooming. Images are cached in self.images so each image path is loaded only once, and biome debug colors are deterministically generated from the biome name so they remain consistent between frames. The main rendering loop should therefore follow the pattern of processing events with handle_events(), advancing the camera with update(delta_time), rendering the current world/debug state with render(...), and using tick() to obtain frame delta time and maintain the desired FPS.
 
@@ -23,8 +25,9 @@ The key files are below:
     The WorldGenerator creates a complete World from a GenerationSettings configuration. Generation starts by creating a defined "water"-filled world, generating arbitrary procedural maps through MapManager, then sequentially generating things like land, biomes, water features, vegetation, entities, etc. For example, ocean generation uses the height map to replace specific tiles with water tiles. Similarly, desert tiles use wetness and temperture maps to generate sand tiles.  
 
 ### Maps:
-- map.py
 - map_types.py
+- map.py
+- mapModifiers.py
 
 ### Features:
 - feature.py
@@ -48,6 +51,28 @@ The key files are below:
     - influencing other pixel's behaviors
     This game will then be like Civ 5 or Polytopia, in that you build civilizations and control units, but in this case it is more open world. Player compete to grow their civilization and complete one of a couple of objectives. 
 
+- entity.py
+- entityManager.py
+behavior/
+- behavior.py
+- behaviorManager.py
+entities/
+- entityFactory.py
+system/
+- considerations.py
+- decisionSystem.py
+- eventBus.py
+- memorySystem.py
+- needSystem.py
+- relationshipSystem.py
+- rules.py
+- simContext.py
+- stimulus.py
+- systemRunner.py
+- task.py
+- territory.py
+- territoryRules.py
+
 ### Tech Tree:
 Every properties/behavior should be one of four kinds, so players learn one grammar:
 
@@ -68,7 +93,20 @@ Plant	Immobile, converts sunlight tile → energy, spawns seeds on a timer
 - tile.py
 - tile_types.py
 
+### Server
+- client.py
+- commands.py
+- deltas.py
+- interest.py
+- protocol.py
+- server.py
+
 TODO: 
+- move simulation somewhere else, set up player id and owner
+- make tree gatherer...
+
+
+- DO SERVER STUFF HERE
 
 - how to optimize pixel behavior/ make it scale well. Are there games that can run on a basic machine (mac/pc) that run this many entities? (fortnight)
 - idea of trading by having pixels drop items to other pixels. 
@@ -76,6 +114,6 @@ TODO:
 - Make spawner entity, player id
 - spawn pixels, make them fight
 - make pixels be able to carry other pixels
-- 
+
 
 

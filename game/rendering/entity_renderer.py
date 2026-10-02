@@ -1,9 +1,24 @@
 import os
 import pygame
 
+from .sprites import get_sprite
+
 
 class EntityRenderer:
     SPRITE_DIR = "sprite"
+
+    # Distinct, fixed colors per player id (the old hash(owner) colors were
+    # nearly identical for small ids like 1, 2, 3).
+    OWNER_COLORS = [
+        (230, 80, 80),
+        (80, 140, 230),
+        (90, 200, 110),
+        (230, 190, 70),
+        (180, 100, 220),
+        (80, 210, 210),
+        (235, 140, 60),
+        (200, 200, 200),
+    ]
 
     def __init__(self, screen, camera):
         self.screen = screen
@@ -14,11 +29,11 @@ class EntityRenderer:
         self.images = {}
 
     def render_entities(self, entities):
-        for entity in sorted(entities, key=lambda e: e.sprite.layer):
+        for entity in sorted(entities, key=lambda e: get_sprite(e.sprite_id).layer):
             self.render_entity(entity)
 
     def render_entity(self, entity):
-        sprite = entity.sprite
+        sprite = get_sprite(entity.sprite_id)
         screen_x, screen_y = self.camera.world_to_screen(entity.position.x, entity.position.y)
         width = max(1, int(sprite.size[0] * self.camera.zoom))
         height = max(1, int(sprite.size[1] * self.camera.zoom))
@@ -37,17 +52,16 @@ class EntityRenderer:
         self.draw_owner_border(entity, screen_x, screen_y, width, height)
 
     def draw_owner_border(self, entity, x, y, width, height):
-        owner = entity.props.get("owner")
-        if not owner:
+        owner = entity.owner
+        if owner is None:
             return
 
         rect = pygame.Rect(x - width // 2 - 2, y - height // 2 - 2, width + 4, height + 4)
         pygame.draw.rect(self.screen, self.owner_color(owner), rect, width=2)
 
-    @staticmethod
-    def owner_color(owner):
-        value = hash(owner)
-        return 80 + (value & 127), 80 + ((value >> 8) & 127), 80 + ((value >> 16) & 127)
+    @classmethod
+    def owner_color(cls, owner):
+        return cls.OWNER_COLORS[owner % len(cls.OWNER_COLORS)]
 
     def draw_shape(self, shape, color, x, y, width, height):
         polygons = shape if isinstance(shape[0][0], (list, tuple)) else [shape]

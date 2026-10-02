@@ -2,7 +2,7 @@ from copy import deepcopy
 from pathlib import Path
 import json
 
-from ..entity import Entity, Sprite, Vec3
+from ..entity import Entity, Vec3
 from ..system.needSystem import Need
 
 LEGACY_PROPS = {
@@ -20,7 +20,12 @@ class EntityFactory:
     def load_definition(self, name: str):
         if name not in self.definitions:
             with open(self.definitions_path / f"{name}.json", "r") as file:
-                self.definitions[name] = json.load(file)
+                definition = json.load(file)
+
+            # Every definition gets a sprite_id (default: its file name). The "sprite"
+            # block in the JSON is visual data that only the client reads (rendering/sprites.py).
+            definition.setdefault("sprite_id", name)
+            self.definitions[name] = definition
 
         return self.definitions[name]
 
@@ -31,25 +36,15 @@ class EntityFactory:
         return self.build(blueprint, entity_id, blueprint_name=blueprint.get("name"), owner=owner)
 
     def build(self, definition: dict, entity_id: int, blueprint_name: str | None = None, owner: int | None = None) -> Entity:
-        sprite = definition.get("sprite", {})
-
         max_health = definition.get("maxHealth", definition.get("health", 1.0))
         max_energy = definition.get("maxEnergy", definition.get("energy", 1.0))
 
         props = {name: definition[section][key] for section, keys in LEGACY_PROPS.items() for key, name in keys.items() if key in definition.get(section, {})}
         props.update(definition.get("props", {}))
-        
 
         entity = Entity(
             id=entity_id,
-            sprite=Sprite(
-                shape=deepcopy(sprite.get("shape")),
-                image=sprite.get("image"),
-                character=sprite.get("character"),
-                color=tuple(sprite.get("color", [255, 255, 255])),
-                size=tuple(sprite.get("size", [16, 16])),
-                layer=sprite.get("layer", 0),
-            ),
+            sprite_id=definition.get("sprite_id", blueprint_name or "pixel"),
             props=props,
             components=deepcopy(definition.get("components", {})),
             name=definition.get("name", blueprint_name or "pixel"),

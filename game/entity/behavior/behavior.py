@@ -3,10 +3,8 @@ from typing import Any, Callable
 
 from ..entity import Entity
 
-
 class BlueprintError(ValueError):
     pass
-
 
 @dataclass
 class Param:
@@ -52,6 +50,29 @@ class Param:
 
         return self.weight * max(0.0, value - (self.minimum or 0.0))
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "default": self.default,
+            "minimum": self.minimum,
+            "maximum": self.maximum,
+            "weight": self.weight,
+            "choices": list(self.choices) if self.choices is not None else None,
+            "description": self.description,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Param":
+        choices = data.get("choices")
+
+        return cls(
+            default=data.get("default", 1.0),
+            minimum=data.get("minimum"),
+            maximum=data.get("maximum"),
+            weight=float(data.get("weight", 0.0)),
+            choices=tuple(choices) if choices is not None else None,
+            description=str(data.get("description", "")),
+        )
+
 
 class Behavior:
     name = "behavior"
@@ -67,12 +88,23 @@ class Behavior:
         unknown = set(values) - set(self.params)
 
         if unknown:
-            raise BlueprintError(f"{self.name} has no parameter(s) {sorted(unknown)}; valid: {sorted(self.params)}")
+            raise BlueprintError(
+                f"{self.name} has no parameter(s) {sorted(unknown)}; "
+                f"valid: {sorted(self.params)}"
+            )
 
-        return {key: spec.validate(self.name, key, values[key]) if key in values else spec.default for key, spec in self.params.items()}
+        return {
+            key: spec.validate(self.name, key, values[key])
+            if key in values
+            else spec.default
+            for key, spec in self.params.items()
+        }
 
     def cost(self, values: dict[str, Any]) -> float:
-        return self.base_cost + sum(spec.price(values.get(key, spec.default)) for key, spec in self.params.items())
+        return self.base_cost + sum(
+            spec.price(values.get(key, spec.default))
+            for key, spec in self.params.items()
+        )
 
     def apply(self, entity: Entity, values: dict[str, Any]):
         pass
@@ -103,3 +135,37 @@ class Behavior:
 
     def add_consideration(self, runner, action_name: str, consideration):
         runner.decision_system.register(action_name, consideration)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "kind": self.kind,
+            "tier": self.tier,
+            "base_cost": self.base_cost,
+            "requires": list(self.requires),
+            "params": {
+                name: spec.to_dict()
+                for name, spec in self.params.items()
+            },
+            "description": self.description,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Behavior":
+        behavior = cls()
+
+        behavior.name = str(data.get("name", behavior.name))
+        behavior.kind = str(data.get("kind", behavior.kind))
+        behavior.tier = int(data.get("tier", behavior.tier))
+        behavior.base_cost = float(data.get("base_cost", behavior.base_cost))
+        behavior.requires = tuple(data.get("requires", behavior.requires))
+        behavior.description = str(
+            data.get("description", behavior.description)
+        )
+
+        behavior.params = {
+            name: Param.from_dict(spec)
+            for name, spec in data.get("params", {}).items()
+        }
+
+        return behavior

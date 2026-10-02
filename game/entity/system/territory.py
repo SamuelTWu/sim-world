@@ -1,3 +1,5 @@
+from typing import Any
+
 class Territory:
     MAX_STRENGTH = 5.0
 
@@ -39,3 +41,22 @@ class Territory:
     def update(self, delta_time):
         loss = self.decay * delta_time
         self.claims = {position: (owner, strength - loss) for position, (owner, strength) in self.claims.items() if strength - loss > self.threshold}
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "decay": self.decay,
+            "threshold": self.threshold,
+            "claims": [
+                {"x": position[0], "y": position[1], "owner": owner, "strength": strength}
+                for position, (owner, strength) in self.claims.items()
+            ],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Territory":
+        territory = cls(decay=float(data.get("decay", 0.01)), threshold=float(data.get("threshold", 0.05)))
+
+        for claim in data.get("claims", []):
+            territory.claims[(int(claim["x"]), int(claim["y"]))] = (int(claim["owner"]), float(claim["strength"]))
+
+        return territory

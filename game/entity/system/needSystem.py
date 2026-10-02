@@ -1,8 +1,7 @@
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Any
 
 from ..entity import Entity
-
 
 @dataclass
 class Need:
@@ -18,6 +17,13 @@ class Need:
 
     def get_urgency(self) -> float:
         return self.urgency(self.value) if self.urgency else self.value
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": self.name, "value": self.value, "rate": self.rate, "minimum": self.minimum, "maximum": self.maximum}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Need":
+        return cls(name=data["name"], value=float(data.get("value", 0.0)), rate=float(data.get("rate", 0.0)), minimum=float(data.get("minimum", 0.0)), maximum=float(data.get("maximum", 1.0)))
 
 
 class NeedSystem:

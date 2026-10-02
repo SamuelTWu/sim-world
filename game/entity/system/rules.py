@@ -17,6 +17,7 @@ STATS = {
     "age": lambda e: e.age,
     "carried": lambda e: e.carried(),
 }
+
 OPS = {"<": lambda a, b: a < b, ">": lambda a, b: a > b}
 
 CONDITION_PARAMS = {
@@ -54,6 +55,7 @@ def trigger(cls):
     TRIGGERS[cls.name] = cls()
     return cls
 
+
 def effect(cls):
     EFFECTS[cls.name] = cls()
     return cls
@@ -62,8 +64,10 @@ def effect(cls):
 def distance(a, b):
     return math.hypot(a.position.x - b.position.x, a.position.y - b.position.y)
 
+
 def nearby(runner, entity, radius, tag=""):
     return [other for other in runner.entities() if other is not entity and (not tag or tag in other.tags) and distance(entity, other) <= radius]
+
 
 def hurt(runner, target, amount, source=None):
     if not target.alive or amount <= 0:
@@ -140,7 +144,6 @@ class OnTimer(Trigger):
             return None
 
         state["clock"] = 0.0
-
         return {}
 
 
@@ -170,7 +173,6 @@ class OnContact(Trigger):
 
         state["clock"] = 0.0
         found = [other for other in nearby(runner, entity, args["radius"], args["tag"]) if self.allowed(entity, other, args["who"])]
-
         return {"other": min(found, key=lambda other: distance(entity, other))} if found else None
 
 
@@ -200,7 +202,6 @@ class DamageArea(Effect):
         for other in nearby(runner, entity, args["radius"], args["tag"]):
             if args["spare_allies"] and other.owner == entity.owner:
                 continue
-
             hurt(runner, other, args["amount"], entity)
 
 
@@ -227,7 +228,11 @@ class Spawn(Effect):
         for _ in range(args["count"]):
             child = runner.spawn_blueprint(blueprint, entity.owner)
             angle, radius = random.uniform(0, math.tau), random.uniform(0, args["spread"])
-            child.position = Vec3(max(0.0, min(world.width * TILE_UNITS - 1, entity.position.x + math.cos(angle) * radius)), max(0.0, min(world.height * TILE_UNITS - 1, entity.position.y + math.sin(angle) * radius)), 0.0)
+            child.position = Vec3(
+                max(0.0, min(world.width * TILE_UNITS - 1, entity.position.x + math.cos(angle) * radius)),
+                max(0.0, min(world.height * TILE_UNITS - 1, entity.position.y + math.sin(angle) * radius)),
+                0.0,
+            )
 
 
 @effect
@@ -276,7 +281,7 @@ class ApplyStatus(Effect):
         targets = [entity] if args["radius"] <= 0 else nearby(runner, entity, args["radius"])
 
         for target in targets:
-            target.statuses = [s for s in target.statuses if s.name != args["name"]]
+            target.statuses = [status for status in target.statuses if status.name != args["name"]]
             target.statuses.append(StatusEffect(args["name"], args["duration"], args["strength"], source=entity.id))
 
 
@@ -308,6 +313,7 @@ def fill(owner, specs, values):
 
     return {key: spec.validate(owner, key, values[key]) if key in values else spec.default for key, spec in specs.items()}
 
+
 def validate_rule(rule):
     unknown = set(rule) - RULE_KEYS
 
@@ -334,15 +340,19 @@ def validate_rule(rule):
         "cooldown": Param(default=0.0, minimum=0.0, maximum=300.0).validate("react", "cooldown", rule.get("cooldown", 0.0)),
     }
 
+
+def validate_rules(rules):
+    return [validate_rule(rule) for rule in rules]
+
+
 def rule_cost(rule):
     t, e = TRIGGERS[rule["on"]], EFFECTS[rule["do"]]
-
     return t.cost + e.cost + sum(spec.price(rule["when"][key]) for key, spec in t.params.items()) + sum(spec.price(rule["with"][key]) for key, spec in e.params.items())
 
 
 def dispatch(runner, trigger, data):
     subject = trigger.subject(data)
-    pool = [subject] if subject is not None else [e for e in runner.entities() if e.alive]
+    pool = [subject] if subject is not None else [entity for entity in runner.entities() if entity.alive]
 
     for entity in pool:
         react = entity.traits.get("react")
@@ -355,7 +365,7 @@ def dispatch(runner, trigger, data):
             if rule["on"] != trigger.name:
                 continue
 
-            state = entity.components.setdefault("react_state", {}).setdefault(index, {})
+            state = entity.components.setdefault("react_state", {}).setdefault(str(index), {})
             extra = trigger.matches(runner, entity, rule["when"], data, state)
 
             if extra is None or state.get("ready", 0.0) > entity.age:
@@ -372,11 +382,13 @@ def dispatch(runner, trigger, data):
             state["ready"] = entity.age + rule["cooldown"]
             EFFECTS[rule["do"]].run(runner, entity, rule["with"], {**data, **extra})
 
+
 def listener_for(runner, trigger):
     def listener(**data):
         dispatch(runner, trigger, data)
 
     return listener
+
 
 def install(runner):
     for trigger in TRIGGERS.values():

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 from ..entity import Entity
-
 
 @dataclass
 class Relationship:
@@ -12,6 +12,13 @@ class Relationship:
     affection: float = 0.0
     resentment: float = 0.0
     familiarity: float = 0.0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"source": self.source, "target": self.target, "trust": self.trust, "fear": self.fear, "affection": self.affection, "resentment": self.resentment, "familiarity": self.familiarity}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Relationship":
+        return cls(source=int(data["source"]), target=int(data["target"]), trust=float(data.get("trust", 0.0)), fear=float(data.get("fear", 0.0)), affection=float(data.get("affection", 0.0)), resentment=float(data.get("resentment", 0.0)), familiarity=float(data.get("familiarity", 0.0)))
 
 
 @dataclass
@@ -46,3 +53,16 @@ class RelationshipSystem:
     def update(self, delta_time: float):
         for relationship in self.relationships.values():
             relationship.familiarity = max(0.0, relationship.familiarity - 0.001 * delta_time)
+
+    def to_dict(self) -> list[dict[str, Any]]:
+        return [relationship.to_dict() for relationship in self.relationships.values()]
+
+    @classmethod
+    def from_dict(cls, data: list[dict[str, Any]]) -> "RelationshipSystem":
+        relationships = {}
+
+        for relationship_data in data:
+            relationship = Relationship.from_dict(relationship_data)
+            relationships[(relationship.source, relationship.target)] = relationship
+
+        return cls(relationships=relationships)

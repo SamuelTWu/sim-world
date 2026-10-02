@@ -23,19 +23,15 @@ class SystemRunner:
         self.world = world
         self.entity_manager = entity_manager
         self.behaviors = behaviors
-
         self.need_system = NeedSystem()
         self.memory_system = MemorySystem()
         self.relationship_system = RelationshipSystem()
         self.decision_system = DecisionSystem()
-
         self.events = EventBus()
-        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps = maps)
-
+        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps)
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}
         self.think_timers: dict[int, float] = {}
-
         self.behaviors.register_all(self)
         register_territory_rules(self)
 
@@ -50,7 +46,6 @@ class SystemRunner:
         self.behaviors.apply(entity)
         self.memory_system.initialize(entity)
         self.events.emit("entity_spawned", entity=entity)
-
         return entity
 
     def entities(self) -> list[Entity]:
@@ -118,7 +113,6 @@ class SystemRunner:
             return False
 
         self.think_timers[entity.id] = self.THINK_INTERVAL
-
         return True
 
     def think(self, entity: Entity):
@@ -157,6 +151,8 @@ class SystemRunner:
                 removed.task = None
 
             self.think_timers.pop(removed.id, None)
+            self.memory_system.remove(removed)
+            self.relationship_system.remove_entity(removed.id)
             self.events.emit("entity_removed", entity=removed)
 
     def update(self, delta_time: float):
@@ -188,5 +184,5 @@ class SystemRunner:
 
             if entity.alive and self.should_think(entity, delta_time):
                 self.think(entity)
-                
+
         self.cleanup_removed()

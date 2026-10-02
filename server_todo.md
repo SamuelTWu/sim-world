@@ -31,9 +31,9 @@ Goal: the game runs with no Pygame. Single player still works.
       HOW: move the non-rendering parts of game.py into it. It exposes `step(dt)` and nothing about screens.
 - [X] 1.2 Remove rendering references from entity.py, entityManager.py, and everything in system/ and behavior/.
       HOW: search those files for `pygame`, `camera`, `sprite`, `image`. Move sprite info to a plain string field (e.g. `sprite_id`) that only the renderer interprets.
-- [ ] 1.3 Give every pixel a stable unique `id` and an `owner` (player id).
+- [X] 1.3 Give every pixel a stable unique `id` and an `owner` (player id).
       HOW: a counter in EntityManager. IDs are never reused.
-- [ ] 1.4 Make pixel state serializable.
+- [X] 1.4 Make pixel state serializable.
       HOW: add `to_dict()` / `from_dict()` on pixel, properties, behaviors, and blueprints. Plain ints/floats/strings/lists only.
 - [ ] 1.5 Make the tick fixed-step.
       HOW: `Simulation.step()` always advances a constant dt (e.g. 0.05s). The game loop calls it in a loop with an accumulator so rendering FPS doesn't affect simulation.

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-
+from typing import Any
 
 @dataclass
 class Stimulus:
@@ -20,12 +20,19 @@ class Stimulus:
 
         return self.strength * (1.0 - distance / self.radius) * (1.0 - self.age / self.lifetime)
 
+    def to_dict(self) -> dict[str, Any]:
+        return {"x": self.x, "y": self.y, "channel": self.channel, "strength": self.strength, "radius": self.radius, "lifetime": self.lifetime, "owner": self.owner, "age": self.age}
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Stimulus":
+        return cls(x=float(data["x"]), y=float(data["y"]), channel=str(data["channel"]), strength=float(data.get("strength", 1.0)), radius=float(data.get("radius", 160.0)), lifetime=float(data.get("lifetime", 3.0)), owner=data.get("owner"), age=float(data.get("age", 0.0)))
+
 
 class StimulusField:
     def __init__(self):
         self.stimuli = []
 
-    def emit(self, stimulus):
+    def emit(self, stimulus: Stimulus):
         self.stimuli.append(stimulus)
 
     def strongest(self, x, y, channels):
@@ -44,4 +51,13 @@ class StimulusField:
         for stimulus in self.stimuli:
             stimulus.age += delta_time
 
-        self.stimuli = [s for s in self.stimuli if s.age < s.lifetime]
+        self.stimuli = [stimulus for stimulus in self.stimuli if stimulus.age < stimulus.lifetime]
+
+    def to_dict(self) -> list[dict[str, Any]]:
+        return [stimulus.to_dict() for stimulus in self.stimuli]
+
+    @classmethod
+    def from_dict(cls, data: list[dict[str, Any]]) -> "StimulusField":
+        field = cls()
+        field.stimuli = [Stimulus.from_dict(stimulus) for stimulus in data]
+        return field

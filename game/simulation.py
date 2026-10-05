@@ -12,22 +12,24 @@ from .entity.system.systemRunner import SystemRunner
 from .entity.system.simContext import TILE_UNITS
 from .entity.entity import Vec3
 
+TICK_RATE = 20
+TICK_DT = 1.0 / TICK_RATE
+
 
 class Simulation:
     def __init__(self, generation_settings=None):
         self.generation_settings = generation_settings or GenerationSettings(
-            width=200,
-            height=200,
+            width=500,
+            height=500,
             seed=None,
             debug=True,
             tag_modifiers={"all": {"scale": 1.3}},
         )
 
-        # None = pick a new random seed on every new game.
-        # An explicit seed passed to start_new_game() sticks until changed.
         self.configured_seed = self.generation_settings.seed
         self.seed = None
-        self.rng = None  # created in start_new_game, seeded from self.seed
+        self.rng = None
+        self.tick = 0
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = None
@@ -40,13 +42,12 @@ class Simulation:
         if seed is not None:
             self.configured_seed = seed
 
-        # Always resolve to a concrete seed so the server can send it to clients
-        # and so the simulation RNG is seeded.
         self.seed = self.configured_seed
         if self.seed is None:
             self.seed = random.randrange(2**32)
         self.generation_settings.seed = self.seed
         self.rng = random.Random(self.seed)
+        self.tick = 0
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = self.generator.generate()
@@ -79,9 +80,10 @@ class Simulation:
                 0.0,
             )
 
-    def step(self, dt):
-        """Advance the simulation. (Phase 1.5 will make dt a fixed constant.)"""
+    def step(self):
+        """Advance the simulation by exactly one fixed tick (TICK_DT seconds)."""
         if self.world is None:
             return
-        self.systems.update(dt)
-        self.world.update(dt)
+        self.systems.update(TICK_DT)
+        self.world.update(TICK_DT)
+        self.tick += 1

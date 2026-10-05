@@ -35,7 +35,7 @@ Goal: the game runs with no Pygame. Single player still works.
       HOW: a counter in EntityManager. IDs are never reused.
 - [X] 1.4 Make pixel state serializable.
       HOW: add `to_dict()` / `from_dict()` on pixel, properties, behaviors, and blueprints. Plain ints/floats/strings/lists only.
-- [ ] 1.5 Make the tick fixed-step.
+- [X] 1.5 Make the tick fixed-step.
       HOW: `Simulation.step()` always advances a constant dt (e.g. 0.05s). The game loop calls it in a loop with an accumulator so rendering FPS doesn't affect simulation.
 - [ ] 1.6 Route ALL world edits through one function (e.g. `world.set_tile(x, y, tile)`).
       HOW: grep for any direct tile writes outside world generation. Replace them. This function will later append to the delta log.

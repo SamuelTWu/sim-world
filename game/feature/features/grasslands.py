@@ -28,7 +28,7 @@ class GrasslandFeature(Feature):
         if tree_influence > 0.50 and context.random.random() < tree_influence * 0.4:
             return context.tiles["tree"]
 
-        if abs(wetness-.5) < .011:
+        if abs(wetness-.5) < .011 and context.random.random()<(wetness-.1):
                     return context.tiles["mud"]
 
         return context.tiles["grass"]

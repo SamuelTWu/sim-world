@@ -101,6 +101,8 @@ Plant	Immobile, converts sunlight tile → energy, spawns seeds on a timer
 - protocol.py
 - server.py
 
+NOTE: The sim runs at 20 hz but screen draws at 60 fps, so pixels will appear to move choppy. Remedy with interpolation in the future. 
+
 TODO: 
 - move simulation somewhere else, set up player id and owner
 - make tree gatherer...

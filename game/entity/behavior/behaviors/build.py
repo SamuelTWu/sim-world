@@ -1,5 +1,3 @@
-import random
-
 from ....tile.tile_types import TILE_TYPES
 from ..behavior import Behavior, Param
 from ...system.decisionSystem import Action
@@ -41,7 +39,7 @@ class BuildTask(Task):
         tile = TILE_TYPES.get(tile_name)
         fail_chance = entity.trait("build", "sloppiness", 0.5) * (1.0 - entity.prop("agility", 0.5))
 
-        if tile is None or random.random() < fail_chance:
+        if tile is None or context.rng.random() < fail_chance:
             self.mistakes += 1
             context.events.emit("build_failed", entity=entity, x=x, y=y, tile=tile_name)
 

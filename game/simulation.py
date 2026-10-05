@@ -12,24 +12,28 @@ from .entity.system.systemRunner import SystemRunner
 from .entity.system.simContext import TILE_UNITS
 from .entity.entity import Vec3
 
-TICK_RATE = 20
-TICK_DT = 1.0 / TICK_RATE
+# The simulation ALWAYS advances in fixed steps of TICK_DT seconds.
+# Rendering FPS, lag spikes, and network timing never change this.
+TICK_RATE = 20              # steps per second
+TICK_DT = 1.0 / TICK_RATE   # 0.05s
 
 
 class Simulation:
     def __init__(self, generation_settings=None):
         self.generation_settings = generation_settings or GenerationSettings(
-            width=500,
-            height=500,
+            width=100,
+            height=100,
             seed=None,
             debug=True,
             tag_modifiers={"all": {"scale": 1.3}},
         )
 
+        # None = pick a new random seed on every new game.
+        # An explicit seed passed to start_new_game() sticks until changed.
         self.configured_seed = self.generation_settings.seed
         self.seed = None
-        self.rng = None
-        self.tick = 0
+        self.rng = None  # created in start_new_game, seeded from self.seed
+        self.tick = 0    # number of steps since the game started
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = None
@@ -42,6 +46,8 @@ class Simulation:
         if seed is not None:
             self.configured_seed = seed
 
+        # Always resolve to a concrete seed so the server can send it to clients
+        # and so the simulation RNG is seeded.
         self.seed = self.configured_seed
         if self.seed is None:
             self.seed = random.randrange(2**32)
@@ -51,10 +57,11 @@ class Simulation:
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = self.generator.generate()
+        self.world.recording = True
         self.entity_manager = EntityManager()
 
         self.systems = SystemRunner(
-            self.world, self.entity_manager, self.behavior_manager, maps=self.generator.maps
+            self.world, self.entity_manager, self.behavior_manager, maps=self.generator.maps, rng=self.rng
         )
 
         self._spawn_starting_pixels()

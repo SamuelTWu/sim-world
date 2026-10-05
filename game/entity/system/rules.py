@@ -1,5 +1,4 @@
 import math
-import random
 
 from ..entity import StatusEffect, Vec3
 from ..behavior.behavior import Param, BlueprintError
@@ -225,9 +224,10 @@ class Spawn(Effect):
         blueprint = runner.entity_manager.entity_factory.load_definition(args["blueprint"])
         world = runner.world
 
+        rng = runner.context.rng
         for _ in range(args["count"]):
             child = runner.spawn_blueprint(blueprint, entity.owner)
-            angle, radius = random.uniform(0, math.tau), random.uniform(0, args["spread"])
+            angle, radius = rng.uniform(0, math.tau), rng.uniform(0, args["spread"])
             child.position = Vec3(
                 max(0.0, min(world.width * TILE_UNITS - 1, entity.position.x + math.cos(angle) * radius)),
                 max(0.0, min(world.height * TILE_UNITS - 1, entity.position.y + math.sin(angle) * radius)),
@@ -371,7 +371,7 @@ def dispatch(runner, trigger, data):
             if extra is None or state.get("ready", 0.0) > entity.age:
                 continue
 
-            if rule["chance"] < 1.0 and random.random() > rule["chance"]:
+            if rule["chance"] < 1.0 and runner.context.rng.random() > rule["chance"]:
                 continue
 
             condition = rule["if"]

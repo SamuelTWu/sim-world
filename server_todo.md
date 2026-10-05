@@ -37,9 +37,9 @@ Goal: the game runs with no Pygame. Single player still works.
       HOW: add `to_dict()` / `from_dict()` on pixel, properties, behaviors, and blueprints. Plain ints/floats/strings/lists only.
 - [X] 1.5 Make the tick fixed-step.
       HOW: `Simulation.step()` always advances a constant dt (e.g. 0.05s). The game loop calls it in a loop with an accumulator so rendering FPS doesn't affect simulation.
-- [ ] 1.6 Route ALL world edits through one function (e.g. `world.set_tile(x, y, tile)`).
+- [X] 1.6 Route ALL world edits through one function (e.g. `world.set_tile(x, y, tile)`).
       HOW: grep for any direct tile writes outside world generation. Replace them. This function will later append to the delta log.
-- [ ] 1.7 Replace all unseeded `random` use in the simulation with the Simulation's RNG.
+- [X] 1.7 Replace all unseeded `random` use in the simulation with the Simulation's RNG.
 - [ ] 1.8 Test: run `Simulation` in a plain script with no Pygame import. Step it 1000 times without errors.
 
 ## Phase 2: Determinism + Checksum

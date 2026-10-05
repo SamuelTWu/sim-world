@@ -19,16 +19,17 @@ class SystemRunner:
     THINK_INTERVAL = 0.25
     SWITCH_MARGIN = 1.3
 
-    def __init__(self, world, entity_manager: EntityManager, behaviors: BehaviorManager, maps=None):
+    def __init__(self, world, entity_manager: EntityManager, behaviors: BehaviorManager, maps=None, rng=None):
         self.world = world
         self.entity_manager = entity_manager
+        self.rng = rng
         self.behaviors = behaviors
         self.need_system = NeedSystem()
         self.memory_system = MemorySystem()
         self.relationship_system = RelationshipSystem()
         self.decision_system = DecisionSystem()
         self.events = EventBus()
-        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps)
+        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng)
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}
         self.think_timers: dict[int, float] = {}

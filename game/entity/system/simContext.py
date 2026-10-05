@@ -1,3 +1,4 @@
+import random
 from dataclasses import dataclass
 from typing import Any
 
@@ -16,6 +17,11 @@ class SimContext:
     territory: Territory
     stimuli: Any = None
     maps: Any = None
+    rng: random.Random | None = None
+
+    def __post_init__(self):
+        if self.rng is None:
+            raise ValueError("SimContext needs the Simulation's seeded rng (rng=...).")
 
     def tile_coords(self, x, y):
         return int(x // TILE_UNITS), int(y // TILE_UNITS)

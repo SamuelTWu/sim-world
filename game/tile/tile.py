@@ -59,17 +59,19 @@ class Tile:
         if self._is_rgb(self.color):
             return self._clamp_color(self.color)
 
+        rng = random.Random(f"tile:{self.name}")
+
         if isinstance(self.color, list):
             if not self.color:
                 raise ValueError(f"Tile '{self.name}' has an empty color list.")
 
-            return self._clamp_color(random.choice(self.color))
+            return self._clamp_color(self.color[int(rng.random() * len(self.color))])
 
         if isinstance(self.color, tuple) and len(self.color) == 2 and all(self._is_rgb(color) for color in self.color):
             minimum, maximum = self.color
 
             return tuple(
-                max(0, min(255, int(random.uniform(minimum[i], maximum[i]))))
+                max(0, min(255, int(minimum[i] + (maximum[i] - minimum[i]) * rng.random())))
                 for i in range(3)
             )
 

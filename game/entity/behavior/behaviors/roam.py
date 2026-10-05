@@ -1,5 +1,4 @@
 import math
-import random
 
 from ..behavior import Behavior, Param
 from ...system.decisionSystem import Action
@@ -38,8 +37,8 @@ def roam_generator(entity, context):
     actions = []
 
     for _ in range(entity.trait("roam", "candidates", 6)):
-        angle = random.uniform(0, math.tau)
-        distance = random.uniform(reach * 0.3, reach)
+        angle = context.rng.uniform(0, math.tau)
+        distance = context.rng.uniform(reach * 0.3, reach)
         x, y = clamp_to_world(context, entity.position.x + math.cos(angle) * distance, entity.position.y + math.sin(angle) * distance)
         actions.append(Action("roam", {"x": x, "y": y, "angle": angle, "cost": path_cost(context, entity.position.x, entity.position.y, x, y)}))
 
@@ -60,7 +59,7 @@ def restlessness(entity, action, context):
     return context.needs.urgency(entity, "exploration", 0.5)
 
 def jitter(entity, action, context):
-    return random.random()
+    return context.rng.random()
 
 
 class RoamTask(Task):

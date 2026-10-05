@@ -7,8 +7,11 @@ _PERMUTATION_CACHE = {}
 
 def _get_permutation(seed):
     if seed not in _PERMUTATION_CACHE:
+        rng = random.Random(seed)
         values = list(range(256))
-        random.Random(seed).shuffle(values)
+        for i in range(255, 0, -1):
+            j = int(rng.random() * (i + 1))
+            values[i], values[j] = values[j], values[i]
         _PERMUTATION_CACHE[seed] = tuple(values + values)
     return _PERMUTATION_CACHE[seed]
 

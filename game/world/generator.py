@@ -36,7 +36,8 @@ class GenerationContext:
 class WorldGenerator:
     def __init__(self, settings: GenerationSettings | None = None):
         self.settings = settings or GenerationSettings()
-        self.random = random.Random(self.settings.seed)
+        seed = self.settings.seed
+        self.random = random.Random(None if seed is None else f"world:{seed}")
 
         self.noise_offset_x = self.random.uniform(-10000, 10000)
         self.noise_offset_y = self.random.uniform(-10000, 10000)

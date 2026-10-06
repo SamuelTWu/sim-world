@@ -21,11 +21,11 @@ TICK_DT = 1.0 / TICK_RATE   # 0.05s
 class Simulation:
     def __init__(self, generation_settings=None):
         self.generation_settings = generation_settings or GenerationSettings(
-            width=250,
-            height=250,
+            width=300,
+            height=300,
             seed=None,
             debug=True,
-            tag_modifiers={"all": {"scale": 1.0}},
+            tag_modifiers={"all": {"scale": 1.2}},
         )
 
         # None = pick a new random seed on every new game.

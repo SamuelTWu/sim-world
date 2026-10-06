@@ -13,6 +13,9 @@ Run from the project root:
 """
 import argparse
 import asyncio
+import os
+import sys
+import threading
 import time
 from collections import namedtuple
 from dataclasses import asdict, dataclass, field
@@ -20,9 +23,10 @@ from dataclasses import asdict, dataclass, field
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from ..simulation import TICK_DT, TICK_RATE
+from game.simulation import TICK_DT, TICK_RATE
 from . import protocol as proto
 
+READY_MARKER = "[server] ready"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8765
 MAX_PLAYERS = 16
@@ -68,6 +72,7 @@ class Server:
     async def run(self):
         async with serve(self.handle_connection, self.host, self.port, max_size=proto.MAX_MESSAGE_BYTES, compression=None):
             print(f"[server] ws://{self.host}:{self.port} | seed {self.sim.seed} | {TICK_RATE} Hz | up to {self.max_players} players")
+            print(READY_MARKER, flush=True)
             await self.tick_loop()
 
     async def tick_loop(self):
@@ -227,6 +232,20 @@ class Server:
             pass
 
 
+def exit_when_stdin_closes():
+    """Used by the single-player launcher: when the game closes or crashes, the pipe closes and the server exits."""
+
+    def watch():
+        sys.stdin.read()
+
+        try:
+            print("[server] launcher closed the pipe, shutting down", flush=True)
+        finally:
+            os._exit(0)
+
+    threading.Thread(target=watch, name="stdin-watch", daemon=True).start()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Sim World server")
     parser.add_argument("--host", default=DEFAULT_HOST, help="use 0.0.0.0 to accept connections from other machines")
@@ -234,7 +253,11 @@ def main():
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--size", type=int, default=None, help="world width and height in tiles (default: the Simulation default)")
     parser.add_argument("--max-players", type=int, default=MAX_PLAYERS)
+    parser.add_argument("--watch-stdin", action="store_true", help="exit when stdin closes (used by the single-player launcher)")
     args = parser.parse_args()
+
+    if args.watch_stdin:
+        exit_when_stdin_closes()
 
     from game.simulation import Simulation
 

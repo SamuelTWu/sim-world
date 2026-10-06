@@ -66,7 +66,7 @@ Goal: a client connects, gets the seed, and generates a matching world.
 ## Phase 4: Single Player = Local Server
 Goal: one code path for everything.
 
-- [ ] 4.1 Single player launches the server in a background thread/process on loopback and connects to it like any client.
+- [X] 4.1 Single player launches the server in a background thread/process on loopback and connects to it like any client.
 - [ ] 4.2 Main menu: "Singleplayer" (starts local server) and "Join" (enter address).
 - [ ] 4.3 Make the renderer read ONLY from client.py's replicated state, never from the Simulation directly.
 

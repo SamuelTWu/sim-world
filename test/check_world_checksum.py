@@ -1,6 +1,6 @@
 import sys
 
-from game.world.generator import WorldGenerator, GenerationSettings
+from ..game.world.generator import WorldGenerator, GenerationSettings
 
 SEED = 12345
 print("started")

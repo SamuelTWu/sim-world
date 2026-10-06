@@ -1,7 +1,7 @@
 import hashlib
 import sys
 
-from game.world.noise import pnoise2
+from ..game.world.noise import pnoise2
 
 EXPECTED = "ed45e0cbc496863e"
 

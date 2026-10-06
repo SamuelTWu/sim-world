@@ -1,8 +1,8 @@
 import hashlib
 import sys
 
-from game.simulation import Simulation
-from game.world.generator import GenerationSettings
+from ..game.simulation import Simulation
+from ..game.world.generator import GenerationSettings
 
 SEED = 42
 STEPS = 300

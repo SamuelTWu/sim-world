@@ -55,9 +55,9 @@ Goal: two machines generate the exact same world from the same seed.
 ## Phase 3: Protocol + Transport
 Goal: a client connects, gets the seed, and generates a matching world.
 
-- [ ] 3.1 Write protocol.py: message types as small dicts with a `type` field, encoded with msgpack.
+- [X] 3.1 Write protocol.py: message types as small dicts with a `type` field, encoded with msgpack.
       Start with: `join`, `welcome` (player id, seed, settings, checksum), `command`, `tick_update`, `world_delta`, `error`.
-- [ ] 3.2 Write server.py: asyncio WebSocket server, accepts connections, assigns player ids, runs `Simulation.step()` at a fixed rate.
+- [X] 3.2 Write server.py: asyncio WebSocket server, accepts connections, assigns player ids, runs `Simulation.step()` at a fixed rate.
       HOW: one asyncio task for the tick loop, one handler per connection pushing messages into a queue the tick loop drains.
 - [ ] 3.3 Write client.py network layer: connects, sends `join`, receives `welcome`.
 - [ ] 3.4 Client generates the world from the seed, compares the checksum, and refuses to continue (with a clear error) if it mismatches.

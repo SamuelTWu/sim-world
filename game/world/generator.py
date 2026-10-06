@@ -48,7 +48,7 @@ class WorldGenerator:
         self.features = FeatureManager()
 
     def generate(self) -> World:
-        start = time.perf_counter()
+        start = time.perf_counter()  # determinism: ok
 
         world = World(
             width=self.settings.width,
@@ -57,7 +57,7 @@ class WorldGenerator:
         )
 
         self.maps.generate_all(self, world.width, world.height)
-        maps_done = time.perf_counter()
+        maps_done = time.perf_counter()  # determinism: ok
 
         context = GenerationContext(
             world=world,
@@ -69,14 +69,14 @@ class WorldGenerator:
         )
 
         self.features.generate_all(context)
-        end = time.perf_counter()
+        end = time.perf_counter()  # determinism: ok
 
         print(f"Generated {world.width}x{world.height} world in {end - start:.3f}s (maps {maps_done - start:.3f}s, features {end - maps_done:.3f}s)")
 
         return world
 
     def generate_map(self, map_object):
-        start = time.perf_counter()
+        start = time.perf_counter()  # determinism: ok
 
         self.modifiers = resolve_modifiers(map_object, self.settings.tag_modifiers)
         map_object.generate(self)
@@ -84,7 +84,7 @@ class WorldGenerator:
         self.modifiers = self._default_modifiers()
 
         if self.settings.debug:
-            print(f"  map '{map_object.name}': {time.perf_counter() - start:.3f}s")
+            print(f"  map '{map_object.name}': {time.perf_counter() - start:.3f}s")  # determinism: ok
 
     @staticmethod
     def _default_modifiers():

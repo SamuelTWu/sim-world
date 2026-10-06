@@ -13,7 +13,7 @@ class FeatureManager:
         self._load_features()
 
     def _load_features(self):
-        for module_info in pkgutil.iter_modules(features.__path__):
+        for module_info in sorted(pkgutil.iter_modules(features.__path__)):
             module = importlib.import_module(f"{features.__name__}.{module_info.name}")
 
             for _, feature_class in inspect.getmembers(module, inspect.isclass):

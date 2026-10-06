@@ -10,7 +10,7 @@ def load_map_types() -> dict[str, type[Map]]:
     package_name = __package__ + ".maps"
     package = importlib.import_module(package_name)
 
-    for module_info in pkgutil.iter_modules(package.__path__):
+    for module_info in sorted(pkgutil.iter_modules(package.__path__)):
         module = importlib.import_module(f"{package_name}.{module_info.name}")
 
         for _, obj in inspect.getmembers(module, inspect.isclass):

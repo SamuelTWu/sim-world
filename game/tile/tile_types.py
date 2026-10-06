@@ -8,7 +8,7 @@ from . import tiles
 def load_tiles() -> dict[str, Tile]:
     tile_types = {}
 
-    for module_info in pkgutil.iter_modules(tiles.__path__):
+    for module_info in sorted(pkgutil.iter_modules(tiles.__path__)):
         module = importlib.import_module(f"{tiles.__name__}.{module_info.name}")
 
         for value in vars(module).values():

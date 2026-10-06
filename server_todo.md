@@ -40,13 +40,13 @@ Goal: the game runs with no Pygame. Single player still works.
 - [X] 1.6 Route ALL world edits through one function (e.g. `world.set_tile(x, y, tile)`).
       HOW: grep for any direct tile writes outside world generation. Replace them. This function will later append to the delta log.
 - [X] 1.7 Replace all unseeded `random` use in the simulation with the Simulation's RNG.
-- [ ] 1.8 Test: run `Simulation` in a plain script with no Pygame import. Step it 1000 times without errors.
+- [X] 1.8 Test: run `Simulation` in a plain script with no Pygame import. Step it 1000 times without errors.
 
 ## Phase 2: Determinism + Checksum
 Goal: two machines generate the exact same world from the same seed.
 
-- [ ] 2.1 Audit world generation (generator.py, noise.py, map*.py, feature*.py).
-      HOW: no `hash()` on strings (use `hashlib` or a fixed table), no unseeded `random`, no iteration over sets, no dependence on dict order from external input. Sort anything you iterate.
+- [X] 2.1 Audit world generation (generator.py, noise.py, map*.py, feature*.py).
+      HOW: no `hash()` on strings (use `hashlib` or a fixed table), no unseeded `random`, no iteration over sets, no dependence on dict order from external input. Sort anything you iterate. -> 
 - [ ] 2.2 Write `world.checksum()` that hashes the tile grid (or sampled chunks).
       HOW: `hashlib.sha256` over tile ids in a fixed order.
 - [ ] 2.3 Test: generate the same seed twice in separate processes, then on a second machine if you can. Checksums must match.
@@ -123,7 +123,7 @@ Do this when the server tick starts taking too long. Measure first.
 ## Phase 10: Persistence + Accounts
 - [ ] 10.1 Player ids / simple login (name + token to start).
 - [ ] 10.2 Save world: seed + settings + delta log + all pixels (via `to_dict()`).
-- [ ] 10.3 Save per-player data: currency, unlocks, blueprints.
+- [ ] 10.3 Save per-player data: currency, unlocks, blueprints. -> not needed for currency or blueprints, but maybe for drawings?
 - [ ] 10.4 Autosave on an interval and on shutdown. Load on startup.
 
 ## Phase 11: Desktop Distribution

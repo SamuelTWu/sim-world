@@ -47,7 +47,7 @@ Goal: two machines generate the exact same world from the same seed.
 
 - [X] 2.1 Audit world generation (generator.py, noise.py, map*.py, feature*.py).
       HOW: no `hash()` on strings (use `hashlib` or a fixed table), no unseeded `random`, no iteration over sets, no dependence on dict order from external input. Sort anything you iterate. -> 
-- [ ] 2.2 Write `world.checksum()` that hashes the tile grid (or sampled chunks).
+- [X] 2.2 Write `world.checksum()` that hashes the tile grid (or sampled chunks).
       HOW: `hashlib.sha256` over tile ids in a fixed order.
 - [ ] 2.3 Test: generate the same seed twice in separate processes, then on a second machine if you can. Checksums must match.
 - [ ] 2.4 Pin dependency versions (numpy etc.) in requirements.txt.

@@ -25,7 +25,7 @@ class Simulation:
             height=250,
             seed=None,
             debug=True,
-            tag_modifiers={"all": {"scale": 1.3}},
+            tag_modifiers={"all": {"scale": 1.0}},
         )
 
         # None = pick a new random seed on every new game.
@@ -57,7 +57,7 @@ class Simulation:
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = self.generator.generate()
-        self.world.recording = True
+        self.world.finish_generation()
         self.entity_manager = EntityManager()
 
         self.systems = SystemRunner(

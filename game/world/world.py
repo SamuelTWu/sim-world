@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import hashlib
 
 from ..tile.tile import Tile
 
@@ -31,6 +32,9 @@ class World:
     recording: bool = field(default=False, init=False)
     changes: dict[tuple[int, int], str] = field(default_factory=dict, init=False, repr=False)
     dirty: set[tuple[int, int]] = field(default_factory=set, init=False, repr=False)
+
+    # Checksum of the generated terrain, before any changes. Set by finish_generation().
+    generation_checksum: str | None = field(default=None, init=False)
 
     def __post_init__(self):
         if self.width <= 0:
@@ -78,6 +82,40 @@ class World:
         changed = [(x, y, self.tiles[y][x].name) for x, y in sorted(self.dirty)]
         self.dirty.clear()
         return changed
+
+    def finish_generation(self) -> None:
+        """
+        Call once, right after world generation and before any tile changes.
+
+        Records the checksum of the generated terrain and starts logging changes.
+        The server sends generation_checksum to joining clients, who compare it
+        with the checksum of their own freshly generated world.
+        """
+
+        self.generation_checksum = self.checksum()
+        self.recording = True
+
+    def checksum(self, x0: int = 0, y0: int = 0, x1: int | None = None, y1: int | None = None) -> str:
+        """
+        Return a SHA-256 hex digest of the tile names in a region (default: the whole world).
+
+        Tiles are hashed row by row (y, then x) using tile.name as the tile id.
+        Colors and every other tile field are ignored, so only the layout matters.
+        """
+
+        x1 = self.width if x1 is None else x1
+        y1 = self.height if y1 is None else y1
+
+        if not (0 <= x0 < x1 <= self.width and 0 <= y0 < y1 <= self.height):
+            raise ValueError(f"Checksum region ({x0}, {y0})-({x1}, {y1}) is outside the {self.width}x{self.height} world.")
+
+        digest = hashlib.sha256()
+        digest.update(f"world-v1|{self.width}x{self.height}|{x0},{y0},{x1},{y1}\n".encode())
+
+        for y in range(y0, y1):
+            digest.update("\x1f".join(tile.name for tile in self.tiles[y][x0:x1]).encode() + b"\n")
+
+        return digest.hexdigest()
 
     def is_inside(self, x: int, y: int) -> bool:
         """Return True if the coordinate is inside the world."""

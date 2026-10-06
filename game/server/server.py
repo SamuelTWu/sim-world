@@ -20,7 +20,7 @@ from dataclasses import asdict, dataclass, field
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
-from game.simulation import TICK_DT, TICK_RATE
+from ..simulation import TICK_DT, TICK_RATE
 from . import protocol as proto
 
 DEFAULT_HOST = "127.0.0.1"
@@ -232,6 +232,7 @@ def main():
     parser.add_argument("--host", default=DEFAULT_HOST, help="use 0.0.0.0 to accept connections from other machines")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--size", type=int, default=None, help="world width and height in tiles (default: the Simulation default)")
     parser.add_argument("--max-players", type=int, default=MAX_PLAYERS)
     args = parser.parse_args()
 
@@ -239,6 +240,10 @@ def main():
 
     print("[server] generating world...")
     sim = Simulation()
+
+    if args.size:
+        sim.generation_settings.width = sim.generation_settings.height = args.size
+
     sim.start_new_game(args.seed)
 
     try:

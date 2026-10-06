@@ -83,17 +83,17 @@ class World:
         self.dirty.clear()
         return changed
 
-    def finish_generation(self) -> None:
+    def finish_generation(self, record: bool = True) -> None:
         """
         Call once, right after world generation and before any tile changes.
 
-        Records the checksum of the generated terrain and starts logging changes.
-        The server sends generation_checksum to joining clients, who compare it
-        with the checksum of their own freshly generated world.
+        Records the checksum of the generated terrain and, if record is True, starts logging
+        changes. The server sends generation_checksum to joining clients, who compare it with
+        the checksum of their own freshly generated world (clients pass record=False).
         """
 
         self.generation_checksum = self.checksum()
-        self.recording = True
+        self.recording = record
 
     def checksum(self, x0: int = 0, y0: int = 0, x1: int | None = None, y1: int | None = None) -> str:
         """

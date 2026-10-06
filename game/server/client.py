@@ -4,10 +4,12 @@ A background thread owns the socket, so the pygame loop never blocks on the netw
 Use it like this:
 
     client = Client("ws://127.0.0.1:8765", name="sam")
-    client.start()                  # returns immediately; connects and sends join in the background
+    client.start()                  # returns immediately: connects, joins, generates the world, checks it
 
     # each frame
-    if client.state == READY:       # welcome received (client.welcome has the seed, settings, checksum)
+    if client.state in (CONNECTING, GENERATING):
+        ...                         # show a loading screen
+    elif client.state == READY:     # client.world and client.generator match the server's terrain
         for message in client.poll():
             ...                     # tick_update, world_delta, error
         client.command("move", {"ids": [1], "target": [320, 480]})
@@ -16,7 +18,10 @@ Use it like this:
 
     client.close()
 
-Scripts can call client.wait() instead of polling the state. This file imports nothing from game/.
+After the welcome arrives the client generates the world from the seed and settings, and compares its
+checksum with the server's. If they differ it goes to FAILED with a clear error and never reaches READY.
+Scripts can call client.wait() instead of polling the state. Generation can take a while on big worlds.
+This file imports nothing from game/ (the world builder is loaded when it is needed).
 """
 import queue
 import threading
@@ -30,19 +35,23 @@ DEFAULT_URL = "ws://127.0.0.1:8765"
 
 IDLE = "idle"
 CONNECTING = "connecting"
+GENERATING = "generating"
 READY = "ready"
 FAILED = "failed"
 CLOSED = "closed"
 
 
 class Client:
-    def __init__(self, url=DEFAULT_URL, name="player", timeout=10.0):
+    def __init__(self, url=DEFAULT_URL, name="player", timeout=10.0, world_builder=None):
         self.url = url
         self.name = name
         self.timeout = timeout
+        self.world_builder = world_builder
         self.state = IDLE
         self.error = None
         self.welcome = None
+        self.generator = None
+        self.world = None
         self.inbox = queue.Queue()
         self.seq = 0
         self.ws = None
@@ -63,7 +72,7 @@ class Client:
         self.thread.start()
 
     def wait(self, timeout=None):
-        """Block until the join finished. Returns True if the welcome arrived; otherwise see .error."""
+        """Block until the join finished. Returns True if the client is READY; otherwise see .error."""
         self.done.wait(timeout)
         return self.state == READY
 
@@ -109,11 +118,36 @@ class Client:
         self.done.set()
 
     def end(self, error):
-        """The connection is over: a failed join if the welcome never came, otherwise a closed session."""
-        self.finish(FAILED if self.state == CONNECTING else CLOSED, error)
+        """The connection is over: a failed join if we never became READY, otherwise a closed session."""
+        self.finish(FAILED if self.state in (CONNECTING, GENERATING) else CLOSED, error)
 
     def receive(self, timeout=None):
         return proto.decode(self.ws.recv(timeout=timeout), accept=proto.SERVER_TYPES)
+
+    def sync_world(self, welcome):
+        """Generate the world from the welcome message. Returns an error string, or None if it matches the server."""
+        build = self.world_builder
+
+        if build is None:
+            from .worldsync import generate_world as build
+
+        try:
+            generator, world = build(welcome)
+            local = world.generation_checksum
+        except Exception as problem:
+            return f"could not generate the world from the server's settings: {problem!r}"
+
+        if local != welcome["checksum"]:
+            settings = welcome["settings"]
+            return (
+                f"world mismatch: the server's terrain checksum is {welcome['checksum'][:12]} but this client generated {local[:12]} "
+                f"(seed {welcome['seed']}, {settings.get('width')}x{settings.get('height')}). "
+                "This client would show a different world than the server, so it refuses to continue. "
+                "Make sure the client and the server run the same version of the game."
+            )
+
+        self.generator, self.world = generator, world
+        return None
 
     def run(self):
         try:
@@ -139,6 +173,17 @@ class Client:
                 return
 
             self.welcome = first
+            self.state = GENERATING
+            problem = self.sync_world(first)
+
+            if problem:
+                self.finish(FAILED, problem)
+                return
+
+            if self.closing:
+                self.finish(CLOSED)
+                return
+
             self.state = READY
             self.done.set()
 

@@ -72,20 +72,14 @@ class Simulation:
         grass = factory.load_definition("pixel_runner")
 
         w, h = self.world.width, self.world.height
-        for _ in range(150):
-            pixel = self.systems.spawn_blueprint(water)
-            pixel.position = Vec3(
-                self.rng.randint(2, int(w / 2)) * TILE_UNITS,
-                self.rng.randint(2, h - 2) * TILE_UNITS,
-                0.0,
-            )
-
-            pixel = self.systems.spawn_blueprint(grass)
-            pixel.position = Vec3(
-                self.rng.randint(int(w / 2), int(w) - 1) * TILE_UNITS,
-                self.rng.randint(2, h - 2) * TILE_UNITS,
-                0.0,
-            )
+        for _ in range(2000):
+            pixel = None
+            if self.rng.randint(0,1) > 0:
+                pixel = self.systems.spawn_blueprint(water)
+            else:
+                pixel = self.systems.spawn_blueprint(grass)
+        
+            pixel.position = Vec3(self.rng.randint(2, int(w) - 1) * TILE_UNITS, self.rng.randint(2, h - 2) * TILE_UNITS,0.0,)
 
     def step(self):
         """Advance the simulation by exactly one fixed tick (TICK_DT seconds)."""

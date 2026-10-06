@@ -59,7 +59,7 @@ Goal: a client connects, gets the seed, and generates a matching world.
       Start with: `join`, `welcome` (player id, seed, settings, checksum), `command`, `tick_update`, `world_delta`, `error`.
 - [X] 3.2 Write server.py: asyncio WebSocket server, accepts connections, assigns player ids, runs `Simulation.step()` at a fixed rate.
       HOW: one asyncio task for the tick loop, one handler per connection pushing messages into a queue the tick loop drains.
-- [ ] 3.3 Write client.py network layer: connects, sends `join`, receives `welcome`.
+- [X] 3.3 Write client.py network layer: connects, sends `join`, receives `welcome`.
 - [ ] 3.4 Client generates the world from the seed, compares the checksum, and refuses to continue (with a clear error) if it mismatches.
 - [ ] 3.5 Test: run server and two clients on your machine. Both show identical terrain.
 

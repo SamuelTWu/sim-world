@@ -2,4 +2,4 @@ pygame==2.6.1
 
 # Phase 3 (networking), add once installed, pinned from `pip freeze`:
 # websockets==
-# msgpack==
+msgpack==1.2.3

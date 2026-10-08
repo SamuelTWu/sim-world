@@ -1,6 +1,6 @@
 import msgpack
 
-from ..game.server.server import protocol as p
+from ..server.server import protocol as p
 
 checks = 0
 

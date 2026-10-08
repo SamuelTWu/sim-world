@@ -12,6 +12,7 @@ Use it like this:
     elif client.state == READY:     # client.world and client.generator match the server's terrain
         for message in client.poll():
             ...                     # tick_update, world_delta, error
+        renderer.render(client.view())  # the renderer only ever sees this snapshot
         client.command("move", {"ids": [1], "target": [320, 480]})
     elif client.state in (FAILED, CLOSED):
         print(client.error)
@@ -30,6 +31,7 @@ from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidURI
 from websockets.sync.client import connect
 
 from . import protocol as proto
+from ui.rendering.replica import View
 
 DEFAULT_URL = "ws://127.0.0.1:8765"
 
@@ -52,6 +54,7 @@ class Client:
         self.welcome = None
         self.generator = None
         self.world = None
+        self.entities = {}
         self.inbox = queue.Queue()
         self.seq = 0
         self.ws = None
@@ -75,6 +78,13 @@ class Client:
         """Block until the join finished. Returns True if the client is READY; otherwise see .error."""
         self.done.wait(timeout)
         return self.state == READY
+
+    def view(self):
+        """A read-only snapshot for the renderer. Only valid once the client is READY."""
+        if self.state != READY:
+            raise RuntimeError("the client has no world yet")
+
+        return View(self.world, self.generator.maps, self.generator.features, list(self.entities.values()), self.player_id)
 
     def poll(self):
         """Return every server message received since the last call, oldest first. Never blocks."""

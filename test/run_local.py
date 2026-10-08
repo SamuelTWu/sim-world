@@ -43,7 +43,7 @@ def write_terrain(path, world):
 
 def tampered_builder(welcome):
     from game.tile.tile_types import TILE_TYPES
-    from game.server.worldsync import generate_world
+    from server.worldsync import generate_world
 
     generator, world = generate_world(welcome)
     first = world.tiles[0][0]
@@ -53,7 +53,7 @@ def tampered_builder(welcome):
 
 
 def join(url, name, builder):
-    from game.server.client import Client
+    from server.client import Client
 
     deadline = time.monotonic() + 120
 
@@ -69,7 +69,7 @@ def join(url, name, builder):
 
 
 def run_client(args):
-    from game.server.client import READY
+    from server.client import READY
 
     client = join(args.url, args.client, tampered_builder if args.tamper else None)
     ready = client.state == READY

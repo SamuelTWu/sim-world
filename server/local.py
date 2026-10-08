@@ -22,7 +22,7 @@ from pathlib import Path
 
 from .server import READY_MARKER
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 
 SERVER_STARTING = "starting"
 SERVER_READY = "ready"
@@ -55,7 +55,7 @@ class LocalServer:
 
     def start(self):
         self.port = free_port()
-        command = [sys.executable, "-m", "game.server.server", "--host", "127.0.0.1", "--port", str(self.port), "--max-players", str(self.max_players), "--watch-stdin",]
+        command = [sys.executable, "-m", "server.server", "--host", "127.0.0.1", "--port", str(self.port), "--max-players", str(self.max_players), "--watch-stdin",]
 
         if self.seed is not None:
             command += ["--seed", str(self.seed)]

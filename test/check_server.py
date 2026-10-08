@@ -5,8 +5,8 @@ from websockets.exceptions import ConnectionClosed
 
 from game.simulation import Simulation, TICK_RATE
 from game.world.generator import GenerationSettings
-from ..game.server.server import protocol as proto
-from ..game.server.server import Server
+from ..server.server import protocol as proto
+from ..server.server import Server
 
 PORT = 8799
 URL = f"ws://127.0.0.1:{PORT}"

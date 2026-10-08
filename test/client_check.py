@@ -4,9 +4,9 @@ import time
 
 from game.simulation import Simulation, TICK_RATE
 from game.world.generator import GenerationSettings
-from game.server import protocol as proto
-from game.server.client import CLOSED, FAILED, READY, Client
-from game.server.server import Server
+from server import protocol as proto
+from server.client import CLOSED, FAILED, READY, Client
+from server.server import Server
 
 print("starting")
 

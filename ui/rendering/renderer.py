@@ -15,6 +15,7 @@ class Renderer:
         self.width = width
         self.height = height
         self.restart_requested = False
+        self.menu_requested = False
 
         self.screen = pygame.display.set_mode((width, height))
         pygame.display.set_caption("Sim World")
@@ -46,6 +47,8 @@ class Renderer:
                         self.debug_feature_index = -1
                 elif event.key == pygame.K_r:
                     self.restart_requested = True
+                elif event.key == pygame.K_ESCAPE:
+                    self.menu_requested = True
 
             self.camera.handle_event(event)
 
@@ -54,7 +57,10 @@ class Renderer:
     def update(self, delta_time):
         self.camera.update(delta_time)
 
-    def render(self, world, maps=None, features=None, entities=None):
+    def render(self, view):
+        """Draw one frame from a View (see server/replica.py). This is the renderer's only source of game data."""
+        world, maps, features, entities = view.world, view.maps, view.features, view.entities
+
         self.screen.fill((0, 0, 0))
 
         if maps:

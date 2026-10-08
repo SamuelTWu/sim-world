@@ -67,13 +67,13 @@ Goal: a client connects, gets the seed, and generates a matching world.
 Goal: one code path for everything.
 
 - [X] 4.1 Single player launches the server in a background thread/process on loopback and connects to it like any client.
-- [ ] 4.2 Main menu: "Singleplayer" (starts local server) and "Join" (enter address).
-- [ ] 4.3 Make the renderer read ONLY from client.py's replicated state, never from the Simulation directly.
+- [X] 4.2 Main menu: "Singleplayer" (starts local server) and "Join" (enter address).
+- [X] 4.3 Make the renderer read ONLY from client.py's replicated state, never from the Simulation directly.
 
 ## Phase 5: Commands
 Goal: players control pixels through the server.
 
-- [ ] 5.1 Write commands.py with a handler per command type. Start with `move` (pixel ids + target).
+- [X] 5.1 Write commands.py with a handler per command type. Start with `move` (pixel ids + target).
       HOW: every handler checks that the player owns the pixel IDs, that the target is valid, and ignores or rejects otherwise. Never trust the client.
 - [ ] 5.2 Add `spawn` (blueprint id, position). Check currency and unlocks.
 - [ ] 5.3 Add `attack`.

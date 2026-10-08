@@ -24,7 +24,7 @@ from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
 from game.simulation import TICK_DT, TICK_RATE
-from . import commands
+from ..game.command import command
 from . import protocol as proto
 
 READY_MARKER = "[server] ready"
@@ -66,7 +66,7 @@ class Server:
         self.port = port
         self.max_players = max_players
         self.inbox = asyncio.Queue()
-        self.commands = commands.CommandContext(sim)
+        self.commands = command.CommandContext(sim)
         self.players = {}
         self.next_player_id = 1
         self.tasks = set()
@@ -144,7 +144,7 @@ class Server:
             print(f"[server] player {client.player_id} '{client.name}' joined ({len(self.players)}/{self.max_players})")
 
     def handle_command(self, client, message):
-        outcome = commands.execute(self.commands, client.player_id, message["name"], message["args"])
+        outcome = command.execute(self.commands, client.player_id, message["name"], message["args"])
 
         if not outcome.ok:
             self.send(client, proto.error(proto.COMMAND_REJECTED, outcome.reason, seq=message["seq"]))

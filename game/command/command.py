@@ -1,4 +1,7 @@
-"""Server-side handling of player commands. Never trust the client: everything it sends is checked here.
+"""Handling of player commands. Never trust the client: everything it sends is checked here.
+
+This file is the framework. Each command lives in its own file in game/command/commands/ (move.py, ...) and
+registers itself with @command. load_commands() imports that whole folder, so dropping in a new file is enough.
 
 Commands are an aspect of a pixel, not a power of the player. A pixel only obeys a command if it carries the
 "command" trait for it, so nothing is commandable until you decide a pixel can be:
@@ -13,16 +16,18 @@ What a command does is also left open. A valid command does not move anything by
 each obeying pixel (pixel.components["order"]) and emits an "order_issued" event. Whatever you decide should
 follow orders (a behavior, a task, a reaction) reads the order or listens for the event.
 
-Adding a command:  subclass Command, set `name`, implement run(), decorate it with @command.
+Adding a command:  new file in game/command/commands/. Subclass Command, set `name`, implement run(), decorate
+it with @command. Use the helpers below (clean_args, as_ids, as_point, select_pixels, issue_order).
 Changing who may be commanded:  add or remove functions in GATES (each returns a reason to refuse, or None).
 
 execute() is the only entry point the server calls. It never raises for bad input.
 """
+import importlib
 import math
 import traceback
 from dataclasses import dataclass, field
 
-from game.entity.system.simContext import TILE_UNITS
+from ..entity.system.simContext import TILE_UNITS
 
 COMMAND_TRAIT = "command"
 ORDER_KEY = "order"
@@ -31,6 +36,7 @@ MAX_IDS = 256
 
 COMMANDS = {}
 GATES = []
+loaded = False
 
 
 class Rejected(Exception):
@@ -216,30 +222,17 @@ def command(cls):
     return cls
 
 
-@command
-class Move(Command):
-    """Order pixels to go to a point. args: {"ids": [pixel ids], "target": [x, y] in world units}.
+def load_commands():
+    """Import every module in game/command/commands/ so the commands in them register. Safe to call repeatedly."""
+    global loaded
 
-    Pixels that are unknown, not yours, dead, or not able to obey are skipped (so a stale id in a group does not
-    ruin the order). Set `strict = True` to refuse the whole command instead. The order is stored as
-    {"kind": "move", "x", "y", "tick", "issuer"}.
-    """
-
-    name = "move"
-
-    def run(self, ctx, player_id, args):
-        clean_args(args, "ids", "target")
-        ids = as_ids(args["ids"])
-        x, y = as_point(args["target"], ctx)
-        pixels, ignored = select_pixels(ctx, player_id, ids, self.name, self.strict)
-
-        for pixel in pixels:
-            issue_order(ctx, pixel, {"kind": "move", "x": x, "y": y, "tick": ctx.tick, "issuer": player_id})
-
-        return Outcome(True, applied=[pixel.id for pixel in pixels], ignored=ignored)
+    if not loaded:
+        importlib.import_module(".commands", __package__)
+        loaded = True
 
 
 def execute(ctx, player_id, name, args):
+    load_commands()
     handler = COMMANDS.get(name) if isinstance(name, str) else None
 
     if handler is None:

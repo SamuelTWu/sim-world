@@ -15,7 +15,7 @@ class Game:
         self.seed = seed
         self.mode = None
         self.url = None
-        self.renderer = Renderer(width=1512, height=982)
+        self.renderer = Renderer(width=1512, height=882)
         self.menu = Menu()
         self.local_server = None
         self.client = None

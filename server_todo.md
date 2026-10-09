@@ -71,11 +71,10 @@ Goal: one code path for everything.
 - [X] 4.3 Make the renderer read ONLY from client.py's replicated state, never from the Simulation directly.
 
 ## Phase 4.5: Tech tree and GUI
-- Make an easy way to edit a tech tree. i can provide attributes (maybe in a json) such as classes, which class it falls under, cost, and what it provides when bought
-- write code to have tech tree button, tech tree window, auto generate tech tree based off files. 
-- make GUI that holds tech tree button, resource button, structure button, pixel blueprint button, as well as a panel for things like score, # of pixels, etc. 
- - put it on the side of the screen? Bottom of the screen? pop up windows?
-- make pixel blueprint window, where you can edit builds, then can drag blueprint onto tile to spawn pixel. 
+- [X] Make an easy way to edit a tech tree. i can provide attributes (maybe in a json) such as classes, which class it falls under, cost, and what it provides when bought
+- [] write code to have tech tree button, tech tree window, auto generate tech tree based off files. 
+- [X] make GUI that holds tech tree button, resource button, structure button, pixel blueprint button, as well as a panel for things like score, # of pixels, etc. 
+- [] make pixel blueprint window, where you can edit builds, then can drag blueprint onto tile to spawn pixel. 
 
 
 ## Phase 5: Commands

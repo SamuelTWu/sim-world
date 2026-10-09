@@ -24,7 +24,7 @@ from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
 from game.simulation import TICK_DT, TICK_RATE
-from ..game.command import command
+from game.command import command
 from . import protocol as proto
 
 READY_MARKER = "[server] ready"

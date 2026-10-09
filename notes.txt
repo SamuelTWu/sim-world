@@ -1,8 +1,30 @@
 Proposal for a new video game:
-Simulate a continent. Make biomes, then terrain. Then, introduce 100 ‘entities’, where an entity is an object with motivation. It has attributes like movement speed, health, abilities, etc. Simulate the world for N steps, then drop the player into the world. The goal is to make the world feel alive, and to make the player feel like they are just a small part of a larger world. 
-How would structures work? All entities have a structure preference. Some may have no structure preference at all. Structure preference is determined by procedural modeling via graph grammars. By making them motivation and not set in stone, there are opportunities for interaction. Like-minded (need to define) entities could cooperate. Adversarial entities could ‘get in each others way’. 
+Simulate a continent. Make biomes, then terrain. Then, introduce 100 ‘entities’, 
+where an entity is an object with motivation. It has attributes like movement speed,
+ health, abilities, etc. Simulate the world for N steps, then drop the player into the world. 
+ The goal is to make the world feel alive, and to make the player feel like they are just a small part of a larger world. 
+How would structures work? All entities have a structure preference. Some may have no structure preference at all. 
+Structure preference is determined by procedural modeling via graph grammars. By making them motivation and not set in stone, 
+there are opportunities for interaction. Like-minded (need to define) entities could cooperate. Adversarial entities could 
+‘get in each others way’. 
 
-The simulation should use a data-driven architecture in which Entity primarily owns attribute/state data while independent systems implement rules, dependencies, relationships, classification, and decision-making. Attributes such as patience, anger, courage, stress, and aggression should be represented as independent base, derived, temporary, environmental, or historical values, with dependencies defined through configuration or an attribute graph rather than hard-coded references between attribute classes (e.g., anger = f(patience, stress, provocation)). Separate systems such as AttributeSystem, RelationshipSystem, NeedSystem, MemorySystem, DecisionSystem, and IdentitySystem operate on this data. Entity identity should be derived bottom-up from attribute vectors rather than assigned through rigid species/archetype/role classes: archetypes define statistical distributions over attributes, and entities are classified using normalized weighted similarity or probabilistic distance, producing multiple concurrent classifications (e.g., Wolf=0.87, Hunter=0.71, Protector=0.63) across independent dimensions such as species, archetype, personality, role, profession, social identity, and behavioral pattern. Because classifications are derived from mutable attributes and experiences, identities can change dynamically and support hybrid or contradictory states without special-case code. The system should also distinguish objective classification, self-concept, and observer-specific social classification, allowing different entities or societies to maintain different beliefs about the same entity based on experience, reputation, culture, relationships, and misinformation. The resulting architecture forms a feedback loop in which attributes drive behavior and experiences, experiences influence classification and self-concept, and those identities subsequently influence future decisions and behavior; consequently, categories remain descriptive emergent properties of the simulation rather than control structures imposed by the developer.
+The simulation should use a data-driven architecture in which Entity primarily owns attribute/state data 
+while independent systems implement rules, dependencies, relationships, classification, and decision-making. 
+Attributes such as patience, anger, courage, stress, and aggression should be represented as independent base, derived, 
+temporary, environmental, or historical values, with dependencies defined through configuration or an attribute graph 
+rather than hard-coded references between attribute classes (e.g., anger = f(patience, stress, provocation)). 
+Separate systems such as AttributeSystem, RelationshipSystem, NeedSystem, MemorySystem, DecisionSystem, and 
+IdentitySystem operate on this data. Entity identity should be derived bottom-up from attribute vectors rather than assigned 
+through rigid species/archetype/role classes: archetypes define statistical distributions over attributes, and entities are 
+classified using normalized weighted similarity or probabilistic distance, producing multiple concurrent classifications 
+(e.g., Wolf=0.87, Hunter=0.71, Protector=0.63) across independent dimensions such as species, archetype, personality, role, 
+profession, social identity, and behavioral pattern. Because classifications are derived from mutable attributes and experiences, 
+identities can change dynamically and support hybrid or contradictory states without special-case code. The system should also 
+distinguish objective classification, self-concept, and observer-specific social classification, allowing different entities or
+ societies to maintain different beliefs about the same entity based on experience, reputation, culture, relationships, and 
+ misinformation. The resulting architecture forms a feedback loop in which attributes drive behavior and experiences, experiences 
+ influence classification and self-concept, and those identities subsequently influence future decisions and behavior; consequently,
+  categories remain descriptive emergent properties of the simulation rather than control structures imposed by the developer.
 
 ok, i want it to be a bit more complicated than that. on the edge of coding, if that makes sense. 
 I envision that I'll provide players with presets (basically just a attribute list that players will have to research, 
@@ -95,93 +117,3 @@ Every time an entity wants to build in a given area, it checks if another entity
 if they do not cooperate, make them fight!
 
 When a player STOP GENERATION, place bots in the biome, change entities to be more NPC, and play! (entities out of the players radius can continue to simulate?)
-
-movement:
-struct MovementProfile {
-    float maxSpeed;
-    float acceleration;
-    float deceleration;
-    float jumpImpulse;
-    float airControl;
-    float gravity;
-
-    float traction;
-    float friction;
-    float turnRate;
-
-    float reach;
-    float grabReach;
-    float climbSpeed;
-
-    bool canAirControl;
-    bool canAttach;
-    bool canClimb;
-    bool canSwing;
-    float anchor;
-    float charge;
-};
-
-
-can also track players movement capabilities:
-struct MovementCapabilities
-{
-    float walkSpeed;
-    float runSpeed;
-
-    float jumpHeight;
-    float jumpDistance;
-
-    float airControl;
-
-    float maxSlope;
-
-    float wallReach;
-    float wallClimbSpeed;
-
-    float grappleRange;
-    float grappleStrength;
-
-    float dashDistance;
-    int dashCharges;
-
-    float swimSpeed;
-    float flightSpeed;
-
-    bool canWallGrab;
-    bool canGrapple;
-    bool canClimb;
-    bool canSwim;
-    bool canFly;
-};
-
-
-
-
-                         ┌───────────────┐
-                         │    Entity     │
-                         │               │
-                         │ raw state     │
-                         │ attributes    │
-                         │ components    │
-                         │ intentions    │
-                         └───────┬───────┘
-                                 │
-              ┌──────────────────┼──────────────────┐
-              ↓                  ↓                  ↓
-        AttributeSystem     MemorySystem      RelationshipSystem
-              │                  │                  │
-              └──────────────────┼──────────────────┘
-                                 ↓
-                           NeedSystem
-                                 ↓
-                         DecisionSystem
-                                 ↓
-                              Action
-                                 ↓
-                    ┌────────────┼────────────┐
-                    ↓            ↓            ↓
-              MovementSystem  CombatSystem  ConstructionSystem
-                    │            │            │
-                    └────────────┼────────────┘
-                                 ↓
-                               World

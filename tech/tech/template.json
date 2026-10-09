@@ -1,0 +1,21 @@
+{
+  "kind": "action",
+  "nodes": {
+    "my_new_node": {
+      "name": "My New Node",
+      "description": "Shown in the tech tree window.",
+      "cost": {"currency": 10, "stone": 2},
+      "requires": ["wandering"],
+      "provides": {
+        "traits": [],
+        "props": [],
+        "commands": [],
+        "triggers": [],
+        "effects": [],
+        "structures": [],
+        "resources": []
+      },
+      "starts_unlocked": false
+    }
+  }
+}

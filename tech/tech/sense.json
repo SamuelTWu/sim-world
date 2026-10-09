@@ -1,0 +1,39 @@
+{
+  "kind": "sense",
+  "nodes": {
+    "sight": {
+      "name": "Sight",
+      "description": "Pixels can see what is around them.",
+      "starts_unlocked": true,
+      "provides": {"traits": ["sight"]}
+    },
+    "keen_sight": {
+      "name": "Keen Sight",
+      "description": "Pixels can see further.",
+      "cost": 12,
+      "requires": ["sight"],
+      "provides": {"props": ["sight_range"]}
+    },
+    "tag_filter": {
+      "name": "Tag Filter",
+      "description": "Pixels can pay attention to only some kinds of things.",
+      "cost": 10,
+      "requires": ["sight"],
+      "provides": {"props": ["sight_filter"]}
+    },
+    "tracking": {
+      "name": "Tracking",
+      "description": "Pixels can follow what they have seen.",
+      "cost": 20,
+      "requires": ["keen_sight"],
+      "provides": {"traits": ["track"]}
+    },
+    "see_hidden": {
+      "name": "See Hidden",
+      "description": "Pixels can see invisible things.",
+      "cost": 25,
+      "requires": ["keen_sight"],
+      "provides": {"props": ["see_invisible"]}
+    }
+  }
+}

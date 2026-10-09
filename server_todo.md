@@ -70,15 +70,24 @@ Goal: one code path for everything.
 - [X] 4.2 Main menu: "Singleplayer" (starts local server) and "Join" (enter address).
 - [X] 4.3 Make the renderer read ONLY from client.py's replicated state, never from the Simulation directly.
 
+## Phase 4.5: Tech tree and GUI
+- Make an easy way to edit a tech tree. i can provide attributes (maybe in a json) such as classes, which class it falls under, cost, and what it provides when bought
+- write code to have tech tree button, tech tree window, auto generate tech tree based off files. 
+- make GUI that holds tech tree button, resource button, structure button, pixel blueprint button, as well as a panel for things like score, # of pixels, etc. 
+ - put it on the side of the screen? Bottom of the screen? pop up windows?
+- make pixel blueprint window, where you can edit builds, then can drag blueprint onto tile to spawn pixel. 
+
+
 ## Phase 5: Commands
 Goal: players control pixels through the server.
 
 - [X] 5.1 Write commands.py with a handler per command type. Start with `move` (pixel ids + target).
       HOW: every handler checks that the player owns the pixel IDs, that the target is valid, and ignores or rejects otherwise. Never trust the client.
-- [ ] 5.2 Add `spawn` (blueprint id, position). Check currency and unlocks.
+- [ ] 5.2 Add `spawn` (blueprint id, position). Check currency and unlocks. PIXELS CAN ONLY BE spawned on land owned by player. need to make tile ownership, which will eventually be dictated by proximiny to player "Colony" structures, placed by the player. 
 - [ ] 5.3 Add `attack`.
+- [ ] 5.35 Add `place`. pixels have an inventory with items held, which they can be instructed to place down. Some structures require multiple pixels in order to carry. (determine by inventory space).
 - [ ] 5.4 Add click-drop and drag-select recall (from the main TODO list) as commands.
-- [ ] 5.5 Add `edit_property` and `save_blueprint` (check currency + tech unlocks).
+- [ ] 5.5 Add `edit_property` and `save_blueprint` (check currency + tech unlocks). WITH THIS, I NEED TO MAKE A GUI AT THE TOP OF THE SCREEN. 
 - [ ] 5.6 Client sends a command, shows an optimistic hint if needed, and corrects when the server state arrives.
 
 ## Phase 6: World Deltas

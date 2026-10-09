@@ -23,7 +23,7 @@ Node fields (everything but the id is optional, except that a node needs a kind 
     cost             a number (paid in DEFAULT_CURRENCY) or {"currency": 10, "stone": 5}; 0 or missing is free
     requires         ids of nodes that must be unlocked first (this is what draws the tree)
     provides         {"traits": [...], "props": [...], "commands": [...], "triggers": [...], "effects": [...],
-                      "structures": [...], "resources": [...]}   (see PROVIDES; add a category there)
+                      "resources": [...]}   (see PROVIDES; add a category there)
     starts_unlocked  true if every player owns it from the start (it cannot require anything that is locked)
 
 load_tree() checks all of it and reports every mistake at once, with the file and node, so a typo is easy to find.
@@ -38,7 +38,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 KINDS = ("body", "sense", "action", "reaction")
-PROVIDES = ("traits", "props", "commands", "triggers", "effects", "structures", "resources")
+PROVIDES = ("traits", "props", "commands", "triggers", "effects", "resources")
 DEFAULT_CURRENCY = "currency"
 DEFAULT_FOLDER = Path(__file__).resolve().parent / "nodes"
 

@@ -22,7 +22,7 @@ def main():
     folder = Path(sys.argv[1]) if len(sys.argv) > 1 else DEFAULT_FOLDER
 
     try:
-        from game.tech.known import known_names
+        from tech.known import known_names
 
         known = known_names()
         note = "provides checked against the game's " + ", ".join(sorted(known))

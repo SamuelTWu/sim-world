@@ -6,8 +6,8 @@ registry is added) accept any name. This file is allowed to import game code, te
 
 
 def known_names():
-    from ..command.command import COMMANDS, load_commands
-    from ..entity.system.rules import EFFECTS, TRIGGERS
+    from game.command.command import COMMANDS, load_commands
+    from game.entity.system.rules import EFFECTS, TRIGGERS
 
     load_commands()
     return {"commands": set(COMMANDS), "triggers": set(TRIGGERS), "effects": set(EFFECTS)}

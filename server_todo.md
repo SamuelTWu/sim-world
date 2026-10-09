@@ -72,9 +72,9 @@ Goal: one code path for everything.
 
 ## Phase 4.5: Tech tree and GUI
 - [X] Make an easy way to edit a tech tree. i can provide attributes (maybe in a json) such as classes, which class it falls under, cost, and what it provides when bought
-- [] write code to have tech tree button, tech tree window, auto generate tech tree based off files. 
+- [X] write code to have tech tree button, tech tree window, auto generate tech tree based off files. 
 - [X] make GUI that holds tech tree button, resource button, structure button, pixel blueprint button, as well as a panel for things like score, # of pixels, etc. 
-- [] make pixel blueprint window, where you can edit builds, then can drag blueprint onto tile to spawn pixel. 
+- [X] make the blueprint button. when clicked, the bottom bar will expand to show you your blueprints, as well as expand a sidebar to show blueprint attributes
 
 
 ## Phase 5: Commands

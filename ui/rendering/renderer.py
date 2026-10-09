@@ -26,7 +26,7 @@ class Renderer:
         self.windowed_size = self.fit_to_desktop(width, height)
         self.screen = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
         self.width, self.height = self.screen.get_size()
-        pygame.display.set_caption("Pixel Nation")
+        pygame.display.set_caption("Sim World")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 18)
 
@@ -94,6 +94,9 @@ class Renderer:
             if event.type in RESIZE_EVENTS:
                 self.resized()
 
+            if self.gui.handle_event(event):
+                continue
+
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and event.mod & pygame.KMOD_ALT):
                     self.toggle_fullscreen()
@@ -112,9 +115,6 @@ class Renderer:
                 elif event.key == pygame.K_ESCAPE:
                     self.menu_requested = True
 
-            if self.gui.handle_event(event):
-                continue
-
             self.camera.handle_event(event)
 
         return True
@@ -123,34 +123,34 @@ class Renderer:
         self.camera.update(delta_time)
 
     def render(self, view):
-        world, maps, features, entities = view.world, view.maps, view.features, view.entities
-
-        if world is not None:
-            world_size = (world.width, world.height)
-            if world_size != self._fitted_world_size:
-                self.camera.fit_world(*world_size)
-                self._fitted_world_size = world_size
-
-        self.screen.fill((0, 0, 0))
-
-        if maps:
-            self.debug_map_names = maps.names()
-
-        if features:
-            self.debug_feature_names = features.names()
-
-        if self.debug_map_index >= 0 and maps and self.debug_map_names:
-            self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
-        elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
-            self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
-        else:
-            self.world_renderer.render_world(world)
-
-        if entities:
-            self.entity_renderer.render_entities(entities)
-
-        self.gui.draw(self.screen)
-        pygame.display.flip()
+            world, maps, features, entities = view.world, view.maps, view.features, view.entities
+    
+            if world is not None:
+                world_size = (world.width, world.height)
+                if world_size != self._fitted_world_size:
+                    self.camera.fit_world(*world_size)
+                    self._fitted_world_size = world_size
+    
+            self.screen.fill((0, 0, 0))
+    
+            if maps:
+                self.debug_map_names = maps.names()
+    
+            if features:
+                self.debug_feature_names = features.names()
+    
+            if self.debug_map_index >= 0 and maps and self.debug_map_names:
+                self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
+            elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
+                self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
+            else:
+                self.world_renderer.render_world(world)
+    
+            if entities:
+                self.entity_renderer.render_entities(entities)
+    
+            self.gui.draw(self.screen)
+            pygame.display.flip()
 
     def tick(self, fps=60):
         return self.clock.tick(fps) / 1000.0

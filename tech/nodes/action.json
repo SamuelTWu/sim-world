@@ -1,0 +1,46 @@
+{
+  "kind": "action",
+  "nodes": {
+    "wandering": {
+      "name": "Wandering",
+      "description": "Pixels can roam on their own.",
+      "starts_unlocked": true,
+      "provides": {"traits": ["roam"]}
+    },
+    "orders": {
+      "name": "Orders",
+      "description": "Pixels can obey move commands.",
+      "cost": 20,
+      "requires": ["wandering"],
+      "provides": {"commands": ["move"]}
+    },
+    "building": {
+      "name": "Building",
+      "description": "Pixels can place tiles.",
+      "cost": 15,
+      "requires": ["wandering"],
+      "provides": {"traits": ["build"]}
+    },
+    "gathering": {
+      "name": "Gathering",
+      "description": "Pixels can collect resources.",
+      "cost": 15,
+      "requires": ["wandering"],
+      "provides": {"traits": ["gather"]}
+    },
+    "fighting": {
+      "name": "Fighting",
+      "description": "Pixels can attack other pixels.",
+      "cost": {"currency": 25, "stone": 5},
+      "requires": ["gathering"],
+      "provides": {"traits": ["attack"]}
+    },
+    "breeding": {
+      "name": "Breeding",
+      "description": "Pixels can make new pixels.",
+      "cost": 30,
+      "requires": ["building"],
+      "provides": {"traits": ["breed"]}
+    }
+  }
+}

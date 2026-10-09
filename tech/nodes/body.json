@@ -1,0 +1,53 @@
+{
+  "kind": "body",
+  "nodes": {
+    "basic_body": {
+      "name": "Basic Body",
+      "description": "Every pixel has health and energy.",
+      "starts_unlocked": true,
+      "provides": {"props": ["max_health", "max_energy"]}
+    },
+    "fast_legs": {
+      "name": "Fast Legs",
+      "description": "Pixels can be built to run faster.",
+      "cost": 10,
+      "requires": ["basic_body"],
+      "provides": {"props": ["max_speed"]}
+    },
+    "heavy_frame": {
+      "name": "Heavy Frame",
+      "description": "Bigger, heavier pixels.",
+      "cost": 10,
+      "requires": ["basic_body"],
+      "provides": {"props": ["mass", "size"]}
+    },
+    "long_life": {
+      "name": "Long Life",
+      "description": "Pixels can live longer.",
+      "cost": 8,
+      "requires": ["basic_body"],
+      "provides": {"props": ["lifespan"]}
+    },
+    "long_reach": {
+      "name": "Long Reach",
+      "description": "Pixels can touch and grab from further away.",
+      "cost": 15,
+      "requires": ["fast_legs"],
+      "provides": {"props": ["reach", "grab_reach"]}
+    },
+    "big_pockets": {
+      "name": "Big Pockets",
+      "description": "Pixels can carry more.",
+      "cost": {"currency": 15, "stone": 5},
+      "requires": ["heavy_frame"],
+      "provides": {"props": ["capacity"]}
+    },
+    "stealth": {
+      "name": "Stealth",
+      "description": "Pixels can turn invisible.",
+      "cost": 25,
+      "requires": ["fast_legs"],
+      "provides": {"props": ["invisible"]}
+    }
+  }
+}

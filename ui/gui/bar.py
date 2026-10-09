@@ -25,6 +25,7 @@ class Bar:
         self.stats = {}
         self.pressed = None
         self.scale = 1.0
+        self.active = set()
 
     def px(self, value):
         return max(1, round(value * self.scale))
@@ -77,7 +78,7 @@ class Bar:
         mouse = pygame.mouse.get_pos()
 
         for name, label, rect in self.button_rects(area):
-            draw_button(surface, painter, rect, label, hovered=rect.collidepoint(mouse), size=self.px(26))
+            draw_button(surface, painter, rect, label, hovered=rect.collidepoint(mouse), active=name in self.active, size=self.px(26))
 
         panel = self.stats_rect(area)
         pygame.draw.rect(surface, theme.PANEL, panel, border_radius=self.px(8))

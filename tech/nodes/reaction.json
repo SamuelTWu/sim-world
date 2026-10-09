@@ -1,0 +1,53 @@
+{
+  "kind": "reaction",
+  "nodes": {
+    "reflexes": {
+      "name": "Reflexes",
+      "description": "Pixels can react when hurt.",
+      "cost": 10,
+      "provides": {"traits": ["react"], "triggers": ["hurt"], "effects": ["set_need"]}
+    },
+    "clicked": {
+      "name": "Clickable",
+      "description": "Pixels can react when the player clicks them.",
+      "cost": 10,
+      "requires": ["reflexes"],
+      "provides": {"triggers": ["click"]}
+    },
+    "last_words": {
+      "name": "Last Words",
+      "description": "Pixels can do something as they die.",
+      "cost": 12,
+      "requires": ["reflexes"],
+      "provides": {"triggers": ["death"], "effects": ["spawn"]}
+    },
+    "explosive": {
+      "name": "Explosive",
+      "description": "Pixels can blow up and hurt everything nearby.",
+      "cost": 25,
+      "requires": ["last_words"],
+      "provides": {"effects": ["damage_area", "die"]}
+    },
+    "alarm": {
+      "name": "Alarm",
+      "description": "Pixels can raise the alarm when they notice something.",
+      "cost": 15,
+      "requires": ["reflexes"],
+      "provides": {"triggers": ["signal", "contact"], "effects": ["emit_stimulus"]}
+    },
+    "ticking": {
+      "name": "Ticking",
+      "description": "Pixels can do something every few seconds.",
+      "cost": 15,
+      "requires": ["reflexes"],
+      "provides": {"triggers": ["timer"], "effects": ["status"]}
+    },
+    "revenge": {
+      "name": "Revenge",
+      "description": "Pixels can hold a grudge against trespassers.",
+      "cost": 20,
+      "requires": ["reflexes"],
+      "provides": {"triggers": ["trespass"], "effects": ["anger"]}
+    }
+  }
+}

@@ -15,13 +15,12 @@ class Game:
         self.seed = seed
         self.mode = None
         self.url = None
-        self.renderer = Renderer(width=1512, height=882)
+        self.renderer = Renderer(width=1800, height=1000)
         self.menu = Menu()
         self.local_server = None
         self.client = None
         self.font = None
         self.small_font = None
-
 
     def open_menu(self, notice=None, screen="main"):
         self.shutdown()
@@ -63,6 +62,7 @@ class Game:
             self.start_single_player(seed)
 
     def shutdown(self):
+        self.renderer.gui.reset()
         if self.client is not None:
             self.client.close()
             self.client = None

@@ -22,6 +22,7 @@ class Game:
         self.font = None
         self.small_font = None
 
+
     def open_menu(self, notice=None, screen="main"):
         self.shutdown()
         action, value = self.menu.show(notice, screen)

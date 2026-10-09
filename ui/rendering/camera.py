@@ -2,7 +2,7 @@ import pygame
 
 
 class Camera:
-    def __init__(self, screen_width: int, screen_height: int, tile_size: int = 32):
+    def __init__(self, screen_width: int, screen_height: int, tile_size: int = 32, ):
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.tile_size = tile_size
@@ -11,7 +11,7 @@ class Camera:
         self.y = 0.0
 
         self.zoom = 1.0
-        self.min_zoom = 0.001
+        self.min_zoom = 0.01
         self.max_zoom = 10.0
 
         self.move_speed = 500.0
@@ -22,6 +22,16 @@ class Camera:
     @property
     def scaled_tile_size(self) -> float:
         return self.tile_size * self.zoom
+
+    def fit_world(self, world_width: int, world_height: int):
+        world_pixel_width = world_width * self.tile_size
+        world_pixel_height = world_height * self.tile_size
+
+        self.x = world_pixel_width / 2
+        self.y = world_pixel_height / 2
+
+        self.zoom = min(self.screen_width / world_pixel_width, self.screen_height / world_pixel_height)
+        self.zoom = max(self.min_zoom, min(self.zoom, self.max_zoom))
 
     def update(self, delta_time: float):
         keys = pygame.key.get_pressed()

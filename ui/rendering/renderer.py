@@ -26,13 +26,14 @@ class Renderer:
         self.windowed_size = self.fit_to_desktop(width, height)
         self.screen = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
         self.width, self.height = self.screen.get_size()
-        pygame.display.set_caption("Sim World")
+        pygame.display.set_caption("Pixel Nation")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 18)
 
         self.camera = Camera(self.width, self.height, self.TILE_SIZE)
         self.world_renderer = WorldRenderer(self.screen, self.camera, self.font, self.TILE_SIZE)
         self.entity_renderer = EntityRenderer(self.screen, self.camera)
+        self._fitted_world_size = None
 
         self.gui = Gui()
 
@@ -122,8 +123,13 @@ class Renderer:
         self.camera.update(delta_time)
 
     def render(self, view):
-        """Draw one frame from a View (see server/replica.py). This is the renderer's only source of game data."""
         world, maps, features, entities = view.world, view.maps, view.features, view.entities
+
+        if world is not None:
+            world_size = (world.width, world.height)
+            if world_size != self._fitted_world_size:
+                self.camera.fit_world(*world_size)
+                self._fitted_world_size = world_size
 
         self.screen.fill((0, 0, 0))
 

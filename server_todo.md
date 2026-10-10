@@ -75,14 +75,14 @@ Goal: one code path for everything.
 - [X] write code to have tech tree button, tech tree window, auto generate tech tree based off files. 
 - [X] make GUI that holds tech tree button, resource button, structure button, pixel blueprint button, as well as a panel for things like score, # of pixels, etc. 
 - [X] make the blueprint button. when clicked, the bottom bar will expand to show you your blueprints, as well as expand a sidebar to show blueprint attributes
-
+- [] Add pixel drag and drop functionality. 
 
 ## Phase 5: Commands
 Goal: players control pixels through the server.
 
 - [X] 5.1 Write commands.py with a handler per command type. Start with `move` (pixel ids + target).
       HOW: every handler checks that the player owns the pixel IDs, that the target is valid, and ignores or rejects otherwise. Never trust the client.
-- [ ] 5.2 Add `spawn` (blueprint id, position). Check currency and unlocks. PIXELS CAN ONLY BE spawned on land owned by player. need to make tile ownership, which will eventually be dictated by proximiny to player "Colony" structures, placed by the player. 
+- [X] 5.2 Add `spawn` (blueprint id, position). Check currency and unlocks. Spawns other pixels
 - [ ] 5.3 Add `attack`.
 - [ ] 5.35 Add `place`. pixels have an inventory with items held, which they can be instructed to place down. Some structures require multiple pixels in order to carry. (determine by inventory space).
 - [ ] 5.4 Add click-drop and drag-select recall (from the main TODO list) as commands.

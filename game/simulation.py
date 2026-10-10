@@ -21,11 +21,11 @@ TICK_DT = 1.0 / TICK_RATE   # 0.05s
 class Simulation:
     def __init__(self, generation_settings=None):
         self.generation_settings = generation_settings or GenerationSettings(
-            width=600,
-            height=300,
+            width=500,
+            height=500,
             seed=None,
             debug=True,
-            tag_modifiers={"all": {"scale": 1.2}},
+            tag_modifiers={"all": {"scale": 1.3}},
         )
 
         # None = pick a new random seed on every new game.
@@ -34,6 +34,7 @@ class Simulation:
         self.seed = None
         self.rng = None  # created in start_new_game, seeded from self.seed
         self.tick = 0    # number of steps since the game started
+        self.owned = {}  # player id -> ids of the pixels that player placed (what the server sends back to that player)
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = None
@@ -54,6 +55,7 @@ class Simulation:
         self.generation_settings.seed = self.seed
         self.rng = random.Random(self.seed)
         self.tick = 0
+        self.owned = {}
 
         self.generator = WorldGenerator(self.generation_settings)
         self.world = self.generator.generate()
@@ -72,14 +74,26 @@ class Simulation:
         grass = factory.load_definition("pixel_runner")
 
         w, h = self.world.width, self.world.height
-        for _ in range(2000):
-            pixel = None
-            if self.rng.randint(0,1) > 0:
-                pixel = self.systems.spawn_blueprint(water)
-            else:
-                pixel = self.systems.spawn_blueprint(grass)
-        
-            pixel.position = Vec3(self.rng.randint(2, int(w) - 1) * TILE_UNITS, self.rng.randint(2, h - 2) * TILE_UNITS,0.0,)
+        for _ in range(150):
+            pixel = self.systems.spawn_blueprint(water)
+            pixel.position = Vec3(
+                self.rng.randint(2, int(w / 2)) * TILE_UNITS,
+                self.rng.randint(2, h - 2) * TILE_UNITS,
+                0.0,
+            )
+
+            pixel = self.systems.spawn_blueprint(grass)
+            pixel.position = Vec3(
+                self.rng.randint(int(w / 2), int(w) - 1) * TILE_UNITS,
+                self.rng.randint(2, h - 2) * TILE_UNITS,
+                0.0,
+            )
+
+    def claim(self, player_id, pixel):
+        self.owned.setdefault(player_id, []).append(pixel.id)
+
+    def owned_ids(self, player_id):
+        return list(self.owned.get(player_id, ()))
 
     def step(self):
         """Advance the simulation by exactly one fixed tick (TICK_DT seconds)."""

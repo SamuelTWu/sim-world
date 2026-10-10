@@ -2,6 +2,7 @@ import textwrap
 
 import pygame
 
+from server import protocol as proto
 from server.client import CLOSED, FAILED, GENERATING, READY, Client
 from server.local import SERVER_EXITED, SERVER_FAILED, SERVER_READY, LocalServer
 
@@ -21,6 +22,7 @@ class Game:
         self.client = None
         self.font = None
         self.small_font = None
+        self.sent = {}
 
     def open_menu(self, notice=None, screen="main"):
         self.shutdown()
@@ -63,12 +65,32 @@ class Game:
 
     def shutdown(self):
         self.renderer.gui.reset()
+        self.renderer.place_requests.clear()
+        self.sent.clear()
         if self.client is not None:
             self.client.close()
             self.client = None
         if self.local_server is not None:
             self.local_server.stop()
             self.local_server = None
+
+    def send_places(self):
+        for blueprint_id, x, y in self.renderer.take_place_requests():
+            seq = self.client.command("place", {"blueprint": blueprint_id, "position": [x, y]})
+
+            if seq is None:
+                self.renderer.gui.notify("Could not send: the connection is not usable")
+            else:
+                self.sent[seq] = "place"
+
+    def show_errors(self, messages):
+        for message in messages:
+            if message["type"] == proto.ERROR:
+                what = self.sent.pop(message.get("seq"), None)
+                self.renderer.gui.notify(f"Could not {what}: {message['message']}" if what else message["message"])
+
+        if len(self.sent) > 64:
+            self.sent.clear()
 
     def connection_status(self):
         server, client = self.local_server, self.client
@@ -134,7 +156,8 @@ class Game:
                     self.renderer.menu_requested = False
                     self.back_to_menu()
                     continue
-                self.client.poll()
+                self.send_places()
+                self.show_errors(self.client.poll())
                 self.renderer.update(delta_time)
                 self.renderer.render(self.client.view())
         finally:

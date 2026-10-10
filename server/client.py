@@ -31,7 +31,7 @@ from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidURI
 from websockets.sync.client import connect
 
 from . import protocol as proto
-from ui.rendering.replica import View
+from .replica import View, apply_tick_update
 
 DEFAULT_URL = "ws://127.0.0.1:8765"
 
@@ -87,14 +87,22 @@ class Client:
         return View(self.world, self.generator.maps, self.generator.features, list(self.entities.values()), self.player_id)
 
     def poll(self):
-        """Return every server message received since the last call, oldest first. Never blocks."""
+        """Return every server message received since the last call, oldest first. Never blocks.
+
+        Pixel updates are applied to self.entities here, on the caller's thread, so the renderer never sees them change mid-frame.
+        """
         messages = []
 
         while True:
             try:
-                messages.append(self.inbox.get_nowait())
+                message = self.inbox.get_nowait()
             except queue.Empty:
                 return messages
+
+            if message["type"] == proto.TICK_UPDATE:
+                apply_tick_update(self.entities, message)
+
+            messages.append(message)
 
     def send(self, message):
         """Send a protocol message. Returns False if the connection is not usable."""

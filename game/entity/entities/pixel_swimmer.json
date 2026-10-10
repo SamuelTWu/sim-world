@@ -7,7 +7,7 @@
     "sprite": {
         "shape": [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]],
         "color": [50, 120, 220],
-        "size": [16, 16],
+        "size": [32, 32],
         "layer": 1
     },
     "traits": {
@@ -17,7 +17,7 @@
     "props": {
         "agility": 0.9,
         "patience": 0.8,
-        "snap_to_grid": 16
+        "snap_to_grid": 32
     },
     "needs": {
         "hunger": {"value": 0.2, "rate": 0.01},

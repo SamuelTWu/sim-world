@@ -24,11 +24,14 @@ execute() is the only entry point the server calls. It never raises for bad inpu
 """
 import importlib
 import math
+import re
 import traceback
 from dataclasses import dataclass, field
 
+from ..entity.entity import Vec3
 from ..entity.system.simContext import TILE_UNITS
 
+BLUEPRINT_ID = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
 COMMAND_TRAIT = "command"
 ORDER_KEY = "order"
 ORDER_ISSUED = "order_issued"
@@ -74,6 +77,24 @@ class CommandContext:
             return self.sim.entity_manager.get(entity_id)
         except KeyError:
             return None
+
+    def load_blueprint(self, blueprint_id):
+        """The blueprint's definition dict, or None if there is no such blueprint."""
+        try:
+            return self.sim.entity_manager.entity_factory.load_definition(blueprint_id)
+        except (OSError, ValueError):
+            return None
+
+    def spawn(self, definition, player_id, x, y):
+        """Create a pixel from a definition at (x, y), owned by player_id, and record that the player owns it.
+
+        Used by `place` (the player creates a pixel) and by whatever carries out a `spawn` order (a pixel creates another).
+        """
+        pixel = self.sim.systems.spawn_blueprint(definition)
+        pixel.owner = player_id
+        pixel.position = Vec3(x, y, 0.0)
+        self.sim.claim(player_id, pixel)
+        return pixel
 
 
 def commandable(entity, name):
@@ -161,6 +182,19 @@ def as_point(value, ctx):
         raise Rejected("the target is outside the world")
 
     return x, y
+
+
+def as_blueprint(value, ctx):
+    """Resolve a blueprint id (a file name in game/entity/entities, without .json) to (id, definition)."""
+    if not isinstance(value, str) or not BLUEPRINT_ID.match(value):
+        raise Rejected("unknown blueprint")
+
+    definition = ctx.load_blueprint(value)
+
+    if definition is None:
+        raise Rejected("unknown blueprint")
+
+    return value, definition
 
 
 def refusal(ctx, entity, player_id, name):

@@ -1,12 +1,16 @@
+from pathlib import Path
+
 import pygame
 
 from .camera import Camera
 from .world_renderer import WorldRenderer
 from .entity_renderer import EntityRenderer
+from .sprites import load_sprites
 from ..gui.gui import Gui
 
 
 MIN_SIZE = (640, 400)
+ENTITY_FOLDER = Path(__file__).resolve().parent.parent / "entity" / "entities"
 RESIZE_EVENTS = tuple(getattr(pygame, name) for name in ("VIDEORESIZE", "WINDOWRESIZED", "WINDOWSIZECHANGED") if hasattr(pygame, name))
 
 
@@ -21,6 +25,7 @@ class Renderer:
         self.height = height
         self.restart_requested = False
         self.menu_requested = False
+        self.place_requests = []
 
         self.fullscreen = False
         self.windowed_size = self.fit_to_desktop(width, height)
@@ -36,6 +41,7 @@ class Renderer:
         self._fitted_world_size = None
 
         self.gui = Gui()
+        load_sprites(ENTITY_FOLDER)
 
         self.debug_map_index = -1
         self.debug_map_names = []
@@ -86,6 +92,21 @@ class Renderer:
                 if hasattr(self.camera, name):
                     setattr(self.camera, name, value)
 
+    def screen_to_world(self, pos):
+        """The world position under a screen position. Uses the camera's own function if it has one, otherwise inverts world_to_screen."""
+        if hasattr(self.camera, "screen_to_world"):
+            return self.camera.screen_to_world(*pos)
+
+        x0, y0 = self.camera.world_to_screen(0.0, 0.0)
+        x1, _ = self.camera.world_to_screen(1.0, 0.0)
+        _, y1 = self.camera.world_to_screen(0.0, 1.0)
+        return (pos[0] - x0) / (x1 - x0), (pos[1] - y0) / (y1 - y0)
+
+    def take_place_requests(self):
+        """Blueprints the player dropped on the map since the last call, as [(blueprint id, world x, world y)]. The game sends them as `place` commands."""
+        requests, self.place_requests = self.place_requests, []
+        return requests
+
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -117,40 +138,44 @@ class Renderer:
 
             self.camera.handle_event(event)
 
+        for blueprint_id, pos in self.gui.take_drops():
+            x, y = self.screen_to_world(pos)
+            self.place_requests.append((blueprint_id, x, y))
+
         return True
 
     def update(self, delta_time):
         self.camera.update(delta_time)
 
     def render(self, view):
-            world, maps, features, entities = view.world, view.maps, view.features, view.entities
-    
-            if world is not None:
-                world_size = (world.width, world.height)
-                if world_size != self._fitted_world_size:
-                    self.camera.fit_world(*world_size)
-                    self._fitted_world_size = world_size
-    
-            self.screen.fill((0, 0, 0))
-    
-            if maps:
-                self.debug_map_names = maps.names()
-    
-            if features:
-                self.debug_feature_names = features.names()
-    
-            if self.debug_map_index >= 0 and maps and self.debug_map_names:
-                self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
-            elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
-                self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
-            else:
-                self.world_renderer.render_world(world)
-    
-            if entities:
-                self.entity_renderer.render_entities(entities)
-    
-            self.gui.draw(self.screen)
-            pygame.display.flip()
+                world, maps, features, entities = view.world, view.maps, view.features, view.entities
+        
+                if world is not None:
+                    world_size = (world.width, world.height)
+                    if world_size != self._fitted_world_size:
+                        self.camera.fit_world(*world_size)
+                        self._fitted_world_size = world_size
+        
+                self.screen.fill((0, 0, 0))
+        
+                if maps:
+                    self.debug_map_names = maps.names()
+        
+                if features:
+                    self.debug_feature_names = features.names()
+        
+                if self.debug_map_index >= 0 and maps and self.debug_map_names:
+                    self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
+                elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
+                    self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
+                else:
+                    self.world_renderer.render_world(world)
+        
+                if entities:
+                    self.entity_renderer.render_entities(entities)
+        
+                self.gui.draw(self.screen)
+                pygame.display.flip()
 
     def tick(self, fps=60):
         return self.clock.tick(fps) / 1000.0

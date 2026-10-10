@@ -23,9 +23,10 @@ from dataclasses import asdict, dataclass, field
 from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
+from game.command import command as commands
 from game.simulation import TICK_DT, TICK_RATE
-from game.command import command
 from . import protocol as proto
+from . import replication
 
 READY_MARKER = "[server] ready"
 DEFAULT_HOST = "127.0.0.1"
@@ -53,6 +54,7 @@ class Client:
     pending: int = 0
     closing: bool = False
     outbox: asyncio.Queue = field(default_factory=asyncio.Queue)
+    known: dict = field(default_factory=dict)
 
 
 def clean_name(name):
@@ -66,7 +68,8 @@ class Server:
         self.port = port
         self.max_players = max_players
         self.inbox = asyncio.Queue()
-        self.commands = command.CommandContext(sim)
+        commands.load_commands()
+        self.commands = commands.CommandContext(sim)
         self.players = {}
         self.next_player_id = 1
         self.tasks = set()
@@ -87,6 +90,7 @@ class Server:
             started = time.monotonic()
             self.process_inbox()
             self.sim.step()
+            self.replicate()
             elapsed = time.monotonic() - started
 
             steps += 1
@@ -110,6 +114,17 @@ class Server:
         while not self.inbox.empty():
             client, message = self.inbox.get_nowait()
             self.handle(client, message)
+
+    def replicate(self):
+        """Tell each player what changed about the pixels they can see (see replication.py). Silent when nothing changed."""
+        for client in self.players.values():
+            if client.closing:
+                continue
+
+            enter, update, leave = replication.diff(client.known, self.sim.owned_ids(client.player_id), self.commands.get_entity)
+
+            if enter or update or leave:
+                self.send(client, proto.tick_update(self.sim.tick, enter, update, leave))
 
     def handle(self, client, message):
         if message is None:
@@ -144,7 +159,7 @@ class Server:
             print(f"[server] player {client.player_id} '{client.name}' joined ({len(self.players)}/{self.max_players})")
 
     def handle_command(self, client, message):
-        outcome = command.execute(self.commands, client.player_id, message["name"], message["args"])
+        outcome = commands.execute(self.commands, client.player_id, message["name"], message["args"])
 
         if not outcome.ok:
             self.send(client, proto.error(proto.COMMAND_REJECTED, outcome.reason, seq=message["seq"]))

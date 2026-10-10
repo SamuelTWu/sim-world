@@ -18,7 +18,15 @@ class Spawn(Command):
     Like `move`, a valid command only stores an order on each obeying pixel:
     {"kind": "spawn", "blueprint", "x", "y", "tick", "issuer"} ("x"/"y" are left out when no target was given, meaning
     "next to the parent"), and emits "order_issued". Nothing carries it out yet: when a behavior does, it should call
-    ctx.spawn(definition, pixel.owner, x, y) and pay whatever the parent has to pay (energy, inventory).
+    ctx.spawn(definition, pixel.owner, x, y) and pay whatever the parent has to pay.
+    
+    Nothing carries it out yet. When a behavior does, it should check the cost, charge it to the parent, and then call
+    ctx.spawn(definition, pixel.owner, x, y). Spawning is CREATING a pixel, so it costs something the parent pays
+    (energy, health, a currency: not decided yet) and never needs anything in the parent's inventory. It is not
+    the other two pixel actions:
+      transfer  moves something that already exists (a resource between inventories, an entity onto or off a carrier)
+      drop      takes something out of the inventory and makes it exist in the world
+    And it is not `place`, where the PLAYER creates a pixel from a blueprint.
 
     SPAWN_GATES are checks on the blueprint itself: functions (ctx, parent, blueprint_id, definition) that return a
     reason to refuse, or None. They run once per command, with parent=None.

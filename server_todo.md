@@ -82,12 +82,13 @@ Goal: players control pixels through the server.
 
 - [X] 5.1 Write commands.py with a handler per command type. Start with `move` (pixel ids + target).
       HOW: every handler checks that the player owns the pixel IDs, that the target is valid, and ignores or rejects otherwise. Never trust the client.
-- [X] 5.2 Add `spawn` (blueprint id, position). Check currency and unlocks. Spawns other pixels
+- [X] 5.2 Add `spawn` (blueprint id, position). Check currency and unlocks. Spawns other pixels (can be placing pixels like structures, or shooting bullets, etc) <- maybe rename to 'drop' or 'place'?
 - [X] 5.3 Add `attack`.
-- [ ] 5.35 Add `place`. pixels have an inventory with items held, which they can be instructed to place down. Some structures require multiple pixels in order to carry. (determine by inventory space).
-- [ ] 5.4 Add click-drop and drag-select recall (from the main TODO list) as commands.
-- [ ] 5.5 Add `edit_property` and `save_blueprint` (check currency + tech unlocks). WITH THIS, I NEED TO MAKE A GUI AT THE TOP OF THE SCREEN. 
-- [ ] 5.6 Client sends a command, shows an optimistic hint if needed, and corrects when the server state arrives.
+- [ ] 5.35 give pixels an inventory with items held. Some structures require multiple pixels in order to carry. (determine by inventory space).
+- [X] 5.4 differentiate between spawn (create pixel with cost, no inventory needed), transfer (move an existing thing), and drop (materialize something from inventory)
+- [ ] 5.5 Add click-drop and drag-select recall (from the main TODO list) as commands.
+- [ ] 5.6 Add `edit_property` and `save_blueprint` (check currency + tech unlocks). WITH THIS, I NEED TO MAKE A GUI AT THE TOP OF THE SCREEN. 
+- [ ] 5.7 Client sends a command, shows an optimistic hint if needed, and corrects when the server state arrives.
 
 ## Phase 6: World Deltas
 Goal: tile changes sync without resending the world.

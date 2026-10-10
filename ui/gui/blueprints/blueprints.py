@@ -9,10 +9,10 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_FOLDER = Path(__file__).resolve().parents[3] / "game"/ "entity" / "entities"
+DEFAULT_FOLDER = Path(__file__).resolve().parent.parent / "entity" / "entities"
 
 LEGACY_SECTIONS = {"movement": "Movement", "physics": "Physics", "material": "Material"}
-HANDLED = {"name", "kind", "tags", "sprite", "sprite_id", "components", "visible", "owner", "maxHealth", "health", "currentHealth", "maxEnergy", "energy", "currentEnergy", "props", "needs", "traits", "inventory", "home", *LEGACY_SECTIONS}
+HANDLED = {"name", "kind", "tags", "sprite", "sprite_id", "components", "visible", "owner", "maxHealth", "health", "currentHealth", "maxEnergy", "energy", "currentEnergy", "props", "needs", "traits", "inventory", "home", "slots", "size", *LEGACY_SECTIONS}
 DEFAULT_COLOR = (140, 146, 160)
 
 
@@ -162,6 +162,16 @@ def describe(blueprint):
                 rows.append((prettify(name), format_value(value)))
 
         sections.append(("Traits", rows))
+
+    capacity = []
+
+    if number(data.get("slots")) is not None:
+        capacity.append(("Slots (holds)", format_value(data["slots"])))
+
+    if number(data.get("size")) is not None:
+        capacity.append(("Size (takes up)", format_value(data["size"])))
+
+    sections.append(("Capacity", capacity))
 
     if isinstance(data.get("inventory"), dict):
         sections.append(("Inventory", flatten(data["inventory"])))

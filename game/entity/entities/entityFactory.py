@@ -5,7 +5,6 @@ import json
 from ..entity import Entity, Vec3
 from ..system.needSystem import Need
 
-
 LEGACY_PROPS = {
     "movement": {"maxSpeed": "max_speed", "reach": "reach", "grabReach": "grab_reach", "climbSpeed": "climb_speed"},
     "physics": {"mass": "mass", "friction": "friction"},
@@ -13,20 +12,30 @@ LEGACY_PROPS = {
 }
 
 
+def whole(value, default, minimum=0):
+    """A whole number at least `minimum`; anything else (missing, text, negative, a fraction) falls back to the default."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+        return default
+
+    return value
+
+
 class EntityFactory:
     def __init__(self, definitions_path: str | Path | None = None):
         self.definitions_path = Path(definitions_path) if definitions_path else Path(__file__).parent
         self.definitions = {}
 
-    def load_definition(self, name: str) -> dict:
+    def load_definition(self, name: str):
         if name not in self.definitions:
             with open(self.definitions_path / f"{name}.json", "r") as file:
                 definition = json.load(file)
 
+            # Every definition gets a sprite_id (default: its file name). The "sprite"
+            # block in the JSON is visual data that only the client reads (rendering/sprites.py).
             definition.setdefault("sprite_id", name)
             self.definitions[name] = definition
 
-        return deepcopy(self.definitions[name])
+        return self.definitions[name]
 
     def create(self, name: str, entity_id: int, owner: int | None = None) -> Entity:
         return self.build(self.load_definition(name), entity_id, blueprint_name=name, owner=owner)
@@ -37,35 +46,33 @@ class EntityFactory:
     def build(self, definition: dict, entity_id: int, blueprint_name: str | None = None, owner: int | None = None) -> Entity:
         max_health = definition.get("maxHealth", definition.get("health", 1.0))
         max_energy = definition.get("maxEnergy", definition.get("energy", 1.0))
+
         props = {name: definition[section][key] for section, keys in LEGACY_PROPS.items() for key, name in keys.items() if key in definition.get(section, {})}
         props.update(definition.get("props", {}))
 
         entity = Entity(
             id=entity_id,
-            position=Vec3.from_dict(definition["position"]) if isinstance(definition.get("position"), dict) else Vec3(*definition.get("position", (0.0, 0.0, 0.0))),
             sprite_id=definition.get("sprite_id", blueprint_name or "pixel"),
+            props=props,
+            components=deepcopy(definition.get("components", {})),
             name=definition.get("name", blueprint_name or "pixel"),
             kind=definition.get("kind", "pixel"),
             blueprint_name=blueprint_name,
             owner=owner if owner is not None else definition.get("owner"),
-            alive=definition.get("alive", True),
-            visible=definition.get("visible", True),
-            age=definition.get("age", 0.0),
-            health=definition.get("currentHealth", definition.get("health", max_health)),
-            max_health=max_health,
-            energy=definition.get("currentEnergy", definition.get("energy", max_energy)),
-            max_energy=max_energy,
             traits=deepcopy(definition.get("traits", {})),
-            props=props,
             tags=set(definition.get("tags", [])),
             inventory=dict(definition.get("inventory", {})),
-            components=deepcopy(definition.get("components", {})),
+            slots=whole(definition.get("slots", 0), 0),
+            size=whole(definition.get("size", 1), 1, minimum=1),
+            health=definition.get("currentHealth", max_health),
+            max_health=max_health,
+            energy=definition.get("currentEnergy", max_energy),
+            max_energy=max_energy,
+            visible=definition.get("visible", True),
         )
 
-        home = definition.get("home")
-
-        if home is not None:
-            entity.home = Vec3.from_dict(home) if isinstance(home, dict) else Vec3(*home)
+        if "home" in definition:
+            entity.home = Vec3(*definition["home"])
 
         for need_name, data in definition.get("needs", {}).items():
             entity.needs[need_name] = Need(

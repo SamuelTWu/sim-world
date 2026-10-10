@@ -85,11 +85,28 @@ Memory: remembers a location or target.
 Mutate: changes into another blueprint when a condition is met (larva to adult, for example).
 Extra rule slots / Capacity boost: more complexity room.
 
-Maybe i do:
-Continent
-Biomes
-Terrain
-Entities
+A. Spawn — create an entity
+A pixel creates another pixel at a location. The new entity does not need to exist in inventory beforehand.
+A cannon spawns a projectile.
+A creature spawns an egg.
+A factory spawns a vehicle.
+The action can be free, consume resources, use energy, or have a cooldown.
+
+B. Transfer — move an existing thing
+An entity or resource moves from one location or container to another.
+A miner collects stone.
+A boat transports passengers.
+A trader transfers goods.
+A tank carries troops.
+Nothing new is created; ownership or location changes.
+
+C. Place — materialize something from inventory
+The pixel consumes an item or resource it holds and creates or modifies something in the world.
+A builder spends stone to construct a wall.
+A worker places water into a tile.
+A unit deploys a carried turret.
+Placement can create a new entity or transform an existing tile.
+
 
 
 Notes on blocks:

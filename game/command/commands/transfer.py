@@ -29,7 +29,7 @@ class Transfer(Command):
 
     A command for pixels, like `move`, `attack` and `spawn`: only pixels you own, that are alive and that carry the
     "command" trait for "transfer" obey. Nothing is created or destroyed (that is `spawn` and `drop`): the thing
-    only changes where it is held. See transfer_step.py for what each form does.
+    only changes where it is held. See entity/behavior/behaviors/transfer.py for what each form does.
 
     Resources: exactly one of "from" / "to" is given (a pixel id); the other side is the acting pixel itself.
     A point is not allowed here, that would be `drop`. Entities: the acting pixels pick it up together (neither given),
@@ -40,7 +40,9 @@ class Transfer(Command):
     functions (ctx, player_id, things) returning a reason to refuse, or None.
 
     A valid command only stores {"kind": "transfer", "item", "from", "to", "tick", "issuer"} on each obeying pixel and
-    emits "order_issued". Nothing carries it out yet: that behavior should call transfer_step(ctx, actors, order).
+    emits "order_issued"; the `transfer` behavior carries it out (entity/behavior/behaviors/transfer.py). For an entity
+    the order also carries "with": the ids of all the pixels given the order, because they have to act together (4
+    pixels lifting a settlement). Resources are moved by each pixel alone.
     """
 
     name = "transfer"
@@ -88,8 +90,13 @@ class Transfer(Command):
         if not pixels:
             raise Rejected("no commandable pixels: " + ", ".join(sorted(set(ignored.values()))) if ignored else "no pixels can transfer")
 
+        order = {"kind": "transfer", "item": clean_item, "from": from_id, "to": to, "tick": ctx.tick, "issuer": player_id}
+
+        if "entity" in clean_item:
+            order["with"] = [pixel.id for pixel in pixels]
+
         for pixel in pixels:
-            issue_order(ctx, pixel, {"kind": "transfer", "item": clean_item, "from": from_id, "to": to, "tick": ctx.tick, "issuer": player_id})
+            issue_order(ctx, pixel, dict(order))
 
         return Outcome(True, applied=[pixel.id for pixel in pixels], ignored=ignored)
 

@@ -10,6 +10,7 @@ from .decisionSystem import DecisionSystem, Decision, Action
 from .eventBus import EventBus
 from .simContext import SimContext
 from .stimulus import StimulusField
+from .orders import follow_orders, order_finished
 from .task import Task, RUNNING
 from .territory import Territory
 from .territoryRules import register_territory_rules
@@ -33,6 +34,7 @@ class SystemRunner:
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}
         self.think_timers: dict[int, float] = {}
+        self.context.spawn = self.spawn_blueprint_at
         self.behaviors.register_all(self)
         register_territory_rules(self)
 
@@ -47,6 +49,12 @@ class SystemRunner:
         self.behaviors.apply(entity)
         self.memory_system.initialize(entity)
         self.events.emit("entity_spawned", entity=entity)
+        return entity
+
+    def spawn_blueprint_at(self, blueprint: dict, owner: int | None, x: float, y: float) -> Entity:
+        """Default for SimContext.spawn (Simulation replaces it with Simulation.spawn_pixel, which also records who owns the pixel)."""
+        entity = self.spawn_blueprint(blueprint, owner)
+        entity.position.x, entity.position.y = x, y
         return entity
 
     def entities(self) -> list[Entity]:
@@ -99,6 +107,7 @@ class SystemRunner:
         status = task.tick(entity, self.context, delta_time)
 
         if status != RUNNING:
+            order_finished(self, entity, task, status)
             entity.task = None
             entity.task_score = 0.0
             self.events.emit("task_finished", entity=entity, task=task, status=status)
@@ -117,6 +126,9 @@ class SystemRunner:
         return True
 
     def think(self, entity: Entity):
+        if follow_orders(self, entity):
+            return
+
         actions = self.get_available_actions(entity)
         decision = self.decision_system.decide(entity, actions, self.context) if actions else None
 
@@ -187,3 +199,4 @@ class SystemRunner:
                 self.think(entity)
 
         self.cleanup_removed()
+        self.context.tick += 1

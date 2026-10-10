@@ -9,15 +9,16 @@ A pixel picks its method with an "attack" trait (in its blueprint, or set at run
 
     "traits": {"attack": {"method": "collision", "damage": 2.0}}
 
-Everything in the trait except "method" overrides that method's `defaults`. A pixel with no attack trait uses
+Everything in the trait except "method" overrides that method's `defaults` (a value left as None, which is what the
+`attack` behavior stores for numbers a blueprint did not set, keeps the default). A pixel with no attack trait uses
 DEFAULT_METHOD (collision) with its defaults. Being ORDERED to attack is a different thing (the "command" trait,
 see command.py): that decides whether the player may give the order, this decides what the pixel does with it.
 
 An attack order ({"kind": "attack", "target": id}) does not name a method on purpose: the method is looked up when
 the order is carried out, so a pixel that gains or changes its attack later just works.
 
-Whatever carries orders out (a behavior, which does not exist yet) should call `attack_step()` once per tick for a
-pixel with an attack order. It returns what happened so the behavior knows what to do next:
+The `attack` behavior (entity/behavior/behaviors/attack.py) calls `attack_step()` once per tick, whether the pixel chose to
+attack or was ordered to. It returns what happened so the behavior knows what to do next:
     "gone"      the target is dead, invisible or missing: drop the order
     "approach"  not in reach yet: move toward the target (or stand still, for a ranged pixel that wants line of sight)
     "waiting"   in reach, but the pixel is still recovering from its last attack
@@ -97,7 +98,7 @@ def resolve(pixel):
     params = dict(method.defaults)
 
     if isinstance(trait, dict):
-        params.update({key: value for key, value in trait.items() if key != "method"})
+        params.update({key: value for key, value in trait.items() if key != "method" and value is not None})
 
     return method, params
 

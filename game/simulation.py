@@ -66,6 +66,7 @@ class Simulation:
             self.world, self.entity_manager, self.behavior_manager, maps=self.generator.maps, rng=self.rng
         )
 
+        self.systems.context.spawn = self.spawn_pixel
         self._spawn_starting_pixels()
 
     def _spawn_starting_pixels(self):
@@ -88,6 +89,19 @@ class Simulation:
                 self.rng.randint(2, h - 2) * TILE_UNITS,
                 0.0,
             )
+
+    def spawn_pixel(self, definition, owner, x, y):
+        """Create a pixel from a blueprint definition at (x, y) for an owner (a player id, or None) and record who owns it.
+
+        The one way a pixel is created during play: `place` (the player) and the `spawn` behavior (a pixel) both use it.
+        """
+        pixel = self.systems.spawn_blueprint(definition, owner)
+        pixel.position = Vec3(x, y, 0.0)
+
+        if owner is not None:
+            self.claim(owner, pixel)
+
+        return pixel
 
     def claim(self, player_id, pixel):
         self.owned.setdefault(player_id, []).append(pixel.id)

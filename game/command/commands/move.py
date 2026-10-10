@@ -5,7 +5,7 @@ from ..command import Command, Outcome, as_ids, as_point, clean_args, command, i
 class Move(Command):
     """Order pixels to go to a point. args: {"ids": [pixel ids], "target": [x, y] in world units}.
 
-    Pixels that are unknown, not yours, dead, or not able to obey are skipped (so a stale id in a group does not
+    The `move` behavior carries the order out. Pixels that are unknown, not yours, dead, or not able to obey are skipped (so a stale id in a group does not
     ruin the order). Set `strict = True` to refuse the whole command instead. The order is stored as
     {"kind": "move", "x", "y", "tick", "issuer"}.
     """

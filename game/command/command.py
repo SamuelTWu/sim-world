@@ -12,12 +12,16 @@ Commands are an aspect of a pixel, not a power of the player. A pixel only obeys
 
 A blueprint can carry the same thing: "traits": {"command": {"move": true}}.
 
-What a command does is also left open. A valid command does not move anything by itself: it stores an order on
-each obeying pixel (pixel.components["order"]) and emits an "order_issued" event. Whatever you decide should
-follow orders (a behavior, a task, a reaction) reads the order or listens for the event.
+A command never does the work itself. Every pixel action is a behavior (entity/behavior/behaviors/: move, attack, spawn,
+transfer), which a pixel can also choose on its own through the decision system. A valid command only validates, then
+stores an order on each obeying pixel (pixel.components["order"] = {"kind": behavior name, ...that action's data...})
+and emits "order_issued". SystemRunner (entity/system/orders.py) then starts that behavior's task with the order's data
+and guarantees nothing else interrupts it. So a command's job is to turn the player's clicks into the action's data.
+A pixel needs BOTH the "command" permission for the command AND the behavior of the same name (see GATES).
 
 Adding a command:  new file in game/command/commands/. Subclass Command, set `name`, implement run(), decorate
 it with @command. Use the helpers below (clean_args, as_ids, as_point, select_pixels, issue_order).
+Adding a command also means: a behavior with the same name, and a line in the `command` behavior's params.
 Changing who may be commanded:  add or remove functions in GATES (each returns a reason to refuse, or None).
 
 execute() is the only entry point the server calls. It never raises for bad input.
@@ -28,7 +32,6 @@ import re
 import traceback
 from dataclasses import dataclass, field
 
-from ..entity.entity import Vec3
 from ..entity.system.simContext import TILE_UNITS
 
 BLUEPRINT_ID = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
@@ -88,13 +91,9 @@ class CommandContext:
     def spawn(self, definition, player_id, x, y):
         """Create a pixel from a definition at (x, y), owned by player_id, and record that the player owns it.
 
-        Used by `place` (the player creates a pixel) and by whatever carries out a `spawn` order (a pixel creates another).
+        Used by `place` (the player creates a pixel). The `spawn` behavior uses the same Simulation.spawn_pixel through SimContext.
         """
-        pixel = self.sim.systems.spawn_blueprint(definition)
-        pixel.owner = player_id
-        pixel.position = Vec3(x, y, 0.0)
-        self.sim.claim(player_id, pixel)
-        return pixel
+        return self.sim.spawn_pixel(definition, player_id, x, y)
 
 
 def commandable(entity, name):
@@ -125,7 +124,12 @@ def gate_trait(ctx, entity, player_id, name):
     return None if commandable(entity, name) else "cannot be commanded"
 
 
-GATES.extend([gate_owner, gate_alive, gate_trait])
+def gate_behavior(ctx, entity, player_id, name):
+    """Orders are carried out by the pixel's own behavior of the same name, so it needs that behavior."""
+    return None if entity.has_trait(name) else "cannot do that"
+
+
+GATES.extend([gate_owner, gate_alive, gate_trait, gate_behavior])
 
 
 def is_int(value):

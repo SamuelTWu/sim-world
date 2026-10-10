@@ -18,10 +18,23 @@ class SimContext:
     stimuli: Any = None
     maps: Any = None
     rng: random.Random | None = None
+    tick: int = 0
+    spawn: Any = None
 
     def __post_init__(self):
         if self.rng is None:
             raise ValueError("SimContext needs the Simulation's seeded rng (rng=...).")
+
+    def get_entity(self, entity_id):
+        """The entity with this id (it may be dead and waiting to be removed: check .alive), or None."""
+        return self.entities.get(entity_id)
+
+    def load_blueprint(self, blueprint_id):
+        """A blueprint's definition dict, or None if there is no such blueprint."""
+        try:
+            return self.entities.entity_factory.load_definition(blueprint_id)
+        except (OSError, ValueError):
+            return None
 
     def tile_coords(self, x, y):
         return int(x // TILE_UNITS), int(y // TILE_UNITS)

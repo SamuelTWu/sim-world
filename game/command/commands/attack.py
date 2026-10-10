@@ -1,4 +1,4 @@
-from game.command.attack_method import load_attack_methods, method_name, resolve
+from ..attack_method import load_attack_methods, method_name, resolve
 from ..command import Command, Outcome, Rejected, as_ids, clean_args, command, is_int, issue_order, select_pixels
 
 ATTACK_GATES = []
@@ -20,16 +20,14 @@ ATTACK_GATES.extend([gate_targetable, gate_not_own])
 class Attack(Command):
     """Order pixels to attack another pixel. args: {"ids": [pixel ids], "target": a pixel id}.
 
-    A command for pixels, like `move` and `spawn`: only pixels you own, that are alive and that carry the "command"
-    trait for "attack" obey (the others are skipped; the command is refused if none can). A pixel never attacks
+    A command for pixels, like `move` and `spawn`: only pixels you own, that are alive, that carry the "command"
+    permission for "attack" and have the `attack` behavior obey (the others are skipped; the command is refused if none can). A pixel never attacks
     itself. Like `move`, a valid command only stores an order on each obeying pixel:
     {"kind": "attack", "target": pixel id, "tick", "issuer"} and emits "order_issued".
 
-    The order does not say HOW to attack. Each pixel attacks in its own way (collision by default, or whatever its
-    "attack" trait names: see attack_method.py), looked up when the order is carried out. A pixel whose attack
-    trait names a method that does not exist is skipped. Nothing carries orders out yet: that behavior should call
-    attack_method.attack_step(ctx, pixel, target) every tick, which applies the pixel's own attack when it is in reach,
-    and says when to move closer or when the target is gone.
+    The order does not say HOW to attack. The pixel's `attack` behavior does it in the pixel's own way (collision by
+    default, or the method its attack trait names: see attack_method.py), chasing the target until it is gone. A pixel
+    whose attack method does not exist is skipped.
 
     ATTACK_GATES are checks on the target: functions (ctx, player_id, target) that return a reason to refuse, or None.
     They run once per command. Add range and "can this player see the target" rules there (Phase 7.5): right now

@@ -108,6 +108,9 @@ A unit deploys a carried turret.
 Placement can create a new entity or transform an existing tile.
 
 
+Resources:
+Tiles contain resources, resources can be both items and Tiles
+
 
 Notes on blocks:
 each block is a feature vector of

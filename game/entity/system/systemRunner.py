@@ -1,3 +1,4 @@
+import traceback
 from typing import Callable
 
 from ..entity import Entity
@@ -11,7 +12,7 @@ from .eventBus import EventBus
 from .simContext import SimContext
 from .stimulus import StimulusField
 from .orders import follow_orders, order_finished
-from .task import Task, RUNNING
+from .task import Task, RUNNING, FAILED
 from .territory import Territory
 from .territoryRules import register_territory_rules
 
@@ -104,7 +105,12 @@ class SystemRunner:
         if task is None:
             return
 
-        status = task.tick(entity, self.context, delta_time)
+        try:
+            status = task.tick(entity, self.context, delta_time)
+        except Exception:
+            # One broken task must not stop the whole simulation (and with it the server): log it, fail the task.
+            traceback.print_exc()
+            status = FAILED
 
         if status != RUNNING:
             order_finished(self, entity, task, status)

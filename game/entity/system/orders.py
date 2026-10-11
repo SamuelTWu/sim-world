@@ -8,6 +8,8 @@ and the pixel goes back to deciding for itself. A newer order replaces the runni
 
 SystemRunner calls follow_orders() at the top of think() and order_finished() when a task ends.
 """
+import traceback
+
 from .decisionSystem import Action, Decision
 
 ORDER_KEY = "order"
@@ -36,7 +38,13 @@ def follow_orders(runner, entity):
         return False
 
     before = entity.task
-    runner.start_task(entity, Decision(action_of(order), ORDER_SCORE))
+
+    try:
+        runner.start_task(entity, Decision(action_of(order), ORDER_SCORE))
+    except Exception:
+        traceback.print_exc()
+        drop(runner, entity, order, "could not start")
+        return False
 
     if entity.task is before:
         drop(runner, entity, order, "could not start")

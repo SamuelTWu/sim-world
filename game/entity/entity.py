@@ -4,6 +4,7 @@ from typing import Any
 """putting this here so its not confusing:
 
 Term	What it is	Analogy	Where it lives
+-------------------------------------------------
 Behavior: A capability definition: its parameters, cost, tier, and the code that makes it work    |   A class |   Behavior subclasses in behavior/
 Trait: One pixel's copy of an Behavior, with its chosen parameter values  |   An instance |   entity.traits["roam"] = {"speed": 1.5}
 Prop: A passive number on a pixel. It does nothing itself, and systems read it    |   A field |   entity.props["flammable"]

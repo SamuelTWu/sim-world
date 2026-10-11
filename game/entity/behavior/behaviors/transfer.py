@@ -26,7 +26,7 @@ Nothing makes a pixel transfer on its own yet (no generator): only orders use it
 import math
 
 from ..behavior import Behavior, Param
-from ... import inventory
+import game.entity.inventory as inventory
 from ...entity import Vec3
 from ...system.movement import BLOCKED, step_toward
 from ...system.simContext import TILE_UNITS

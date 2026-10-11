@@ -11,7 +11,7 @@ class Spawn(Command):
     A valid command only stores the order {"kind": "spawn", "blueprint", "x", "y", "tick", "issuer"} ("x"/"y" are left out
     when no target was given, meaning "next to the parent") and emits "order_issued"; the spawn behavior carries it out
     (entity/behavior/behaviors/spawn.py) and charges the parent the spawn cost (still undecided). Spawning never needs
-    inventory: it creates a NEW pixel. Moving something that exists is `transfer`; making something from the inventory
+    inventory: it creates a NEW pixel. Picking up something that exists is `pickup`; making something from the inventory
     exist in the world is `drop`; the player creating one is `place`.
 
     SPAWN_GATES (defined in the spawn behavior, so pixels spawning on their own obey them too) are checks on the blueprint itself: functions (ctx, parent, blueprint_id, definition) that return a

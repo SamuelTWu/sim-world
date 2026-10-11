@@ -1,6 +1,6 @@
 """One click, any command. The player selects pixels (ids, or a dragged box) and clicks a spot on the map; the server decides what
 that click means for the chosen action and runs the matching command. Nothing here is new game logic: it only turns a click into the
-arguments of `move`, `attack`, `spawn`, `drop` or `transfer`, so every rule, gate and order those commands have still applies.
+arguments of `move`, `attack`, `spawn`, `drop` or `pickup`, so every rule, gate and order those commands have still applies.
 
 args: {"ids": [...] or "box": [x0, y0, x1, y1], "point": [x, y], "action": name (optional), ...extras for that action}
 
@@ -9,15 +9,11 @@ args: {"ids": [...] or "box": [x0, y0, x1, y1], "point": [x, y], "action": name 
     move       move to the point
     attack     attack the hostile pixel under the click (refused if there is none)
     spawn      create a pixel of `blueprint` at the point                             blueprint
-    drop       put `item` ({"resource", "amount"}) on the ground at the point         item
-    transfer   a pixel under the click is the other side:                             item, mode, from
-                 no item        pick up the pixel under the click (settlement, passenger)
-                 resource item  mode "give" (default): give it to that pixel; "take": take from it
-                 entity item    put it on the pixel under the click, or set it down at the point if there is none
-                                ("from": the carrier to take it off first)
+    pickup     pick up the pixel of yours under the click (refused if there is none)
+    drop       put `item` ({"entity": id}, {"resource", "amount"} or {"all": true}) down at the point   item
 
 "Under the click" means the nearest living pixel within PICK_RADIUS of the point, never one of the pixels being ordered. Hostile
-means visible and not yours; for transfer the pixel must be yours. Add an action with @click_action("name", extras=(...)): a function
+means visible and not yours; for pickup the pixel must be yours. Add an action with @click_action("name", extras=(...)): a function
 (ctx, player_id, ids, point, args) -> (command name, that command's args without ids). Unknown extras for an action are refused.
 """
 from ..command import COMMANDS, Command, Rejected, as_ids, as_point, command, pick_entity
@@ -72,39 +68,14 @@ def click_drop(ctx, player_id, ids, point, args):
     return "drop", {"item": args["item"], "target": list(point)}
 
 
-@click_action("transfer", extras=("item", "mode", "from"))
-def click_transfer(ctx, player_id, ids, point, args):
+@click_action("pickup")
+def click_pickup(ctx, player_id, ids, point, args):
     other = own_under(ctx, player_id, ids, *point)
-    item = args.get("item")
-    inner = {}
 
-    if item is None:
-        if other is None or "mode" in args or "from" in args:
-            raise Rejected("click one of your pixels to pick it up")
+    if other is None:
+        raise Rejected("click one of your pixels to pick it up")
 
-        return "transfer", {"item": {"entity": other.id}}
-
-    if isinstance(item, dict) and "resource" in item:
-        mode = args.get("mode", "give")
-
-        if mode not in ("give", "take") or "from" in args:
-            raise Rejected("mode must be give or take (and from only applies to carrying things)")
-
-        if other is None:
-            raise Rejected("click one of your pixels to give to or take from (to put resources on the ground, use drop)")
-
-        return "transfer", {"item": item, "to" if mode == "give" else "from": other.id}
-
-    if "mode" in args:
-        raise Rejected("mode only applies to resources")
-
-    inner["item"] = item
-
-    if "from" in args:
-        inner["from"] = args["from"]
-
-    inner["to"] = other.id if other is not None else list(point)
-    return "transfer", inner
+    return "pickup", {"target": other.id}
 
 
 def default_click(ctx, player_id, ids, point, args):

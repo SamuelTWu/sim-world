@@ -4,12 +4,13 @@ from ..command import Command, Outcome, Rejected, as_ids, as_point, clean_args, 
 
 @command
 class Drop(Command):
-    """Order pixels to put resources from their inventory on the ground. args: {"ids": [pixel ids], "item": {"resource": name, "amount": n} or {"all": true}, "target": [x, y] (optional)}.
+    """Order pixels to put down what they hold. args: {"ids": [pixel ids], "item": {"entity": pixel id} or {"resource": name, "amount": n} or {"all": true}, "target": [x, y] (optional)}.
 
-    A command for pixels, like `move` and `transfer`: only pixels you own, that are alive, that carry the "command"
-    permission for "drop" and have the `drop` behavior obey (the others are skipped). Only resources can be dropped; to put a
-    pixel or structure down use `transfer` with "to": [x, y]. Each pixel drops up to `amount` of its OWN resource as a pile pixel
-    (see entity/behavior/behaviors/drop.py); a pixel without it fails and loses nothing.
+    A command for pixels, like `move` and `pickup`: only pixels you own, that are alive, that carry the "command"
+    permission for "drop" and have the `drop` behavior obey (the others are skipped). A carried pixel ({"entity": id}) is set
+    down; a resource becomes a pile pixel; "all" is everything the pixel holds. A pixel that does not hold it fails and loses
+    nothing (see entity/behavior/behaviors/drop.py). There is no `transfer`: moving something between pixels is one dropping it
+    and another picking it up (`pickup`).
 
     A valid command only stores {"kind": "drop", "item", "x", "y", "tick", "issuer"} ("x"/"y" left out when no target was
     given, meaning "next to the pixel") and emits "order_issued"; the drop behavior carries it out. DROP_GATES (in the behavior)
@@ -26,9 +27,14 @@ class Drop(Command):
 
         if isinstance(item, dict) and set(item) == {"all"} and item["all"] is True:
             name, clean_item = None, {"all": True}
+        elif isinstance(item, dict) and set(item) == {"entity"}:
+            if not is_int(item["entity"]):
+                raise Rejected("the item must name a pixel id")
+
+            name, clean_item = None, {"entity": item["entity"]}
         else:
             if not isinstance(item, dict) or set(item) != {"resource", "amount"}:
-                raise Rejected("the item must be {resource, amount} or {all: true} (to put a pixel down, use transfer)")
+                raise Rejected("the item must be {entity}, {resource, amount} or {all: true}")
 
             name, amount = item["resource"], item["amount"]
 

@@ -33,7 +33,7 @@ ACTIONS = [
     ("attack", "Attack", "Click the pixel to attack"),
     ("spawn", "Spawn", "Click where to spawn"),
     ("drop", "Drop everything", "Click where to drop"),
-    ("transfer", "Pick up", "Click one of your pixels to pick it up"),
+    ("pickup", "Pick up", "Click one of your pixels to pick it up"),
 ]
 
 

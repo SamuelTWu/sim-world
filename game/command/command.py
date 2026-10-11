@@ -13,7 +13,7 @@ Commands are an aspect of a pixel, not a power of the player. A pixel only obeys
 A blueprint can carry the same thing: "traits": {"command": {"move": true}}.
 
 A command never does the work itself. Every pixel action is a behavior (entity/behavior/behaviors/: move, attack, spawn,
-transfer), which a pixel can also choose on its own through the decision system. A valid command only validates, then
+pickup), which a pixel can also choose on its own through the decision system. A valid command only validates, then
 stores an order on each obeying pixel (pixel.components["order"] = {"kind": behavior name, ...that action's data...})
 and emits "order_issued". SystemRunner (entity/system/orders.py) then starts that behavior's task with the order's data
 and guarantees nothing else interrupts it. So a command's job is to turn the player's clicks into the action's data.

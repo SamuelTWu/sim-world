@@ -12,15 +12,12 @@
         "layer": 2
     },
     "traits": {
-        "command": {"move": true, "attack": true, "spawn": true, "transfer": true, "drop": true},
+        "command": {"move": true, "attack": true, "spawn": true, "pickup": true, "drop": true},
         "move": {"speed": 2.0},
         "attack": {},
         "spawn": {"blueprint": "", "cooldown_ticks": 20},
-        "transfer": {},
+        "pickup": {},
         "drop": {}
-    },
-    "props": {
-        "snap_to_grid": 32
     },
     "inventory": {"iron": 3, "seeds": 1},
     "components": {

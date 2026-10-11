@@ -1,4 +1,4 @@
-"""Walking toward a point, shared by every task that has to get somewhere (move, attack, transfer).
+"""Walking toward a point, shared by every task that has to get somewhere (move, attack, pickup).
 
 roam.py has its own copy of this because it was written first; it could use step_toward() too.
 """

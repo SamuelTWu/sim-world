@@ -1,5 +1,5 @@
 {
-    "name": "pixel_swimmer",
+    "name": "swimmer",
     "tags": ["pixel", "swimmer"],
     "health": 1.0,
     "energy": 1.0,

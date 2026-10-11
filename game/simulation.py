@@ -67,28 +67,8 @@ class Simulation:
         )
 
         self.systems.context.spawn = self.spawn_pixel
-        self._spawn_starting_pixels()
 
-    def _spawn_starting_pixels(self):
-        factory = self.entity_manager.entity_factory
-        water = factory.load_definition("pixel_swimmer")
-        grass = factory.load_definition("pixel_runner")
-
-        w, h = self.world.width, self.world.height
-        for _ in range(150):
-            pixel = self.systems.spawn_blueprint(water)
-            pixel.position = Vec3(
-                self.rng.randint(2, int(w / 2)) * TILE_UNITS,
-                self.rng.randint(2, h - 2) * TILE_UNITS,
-                0.0,
-            )
-
-            pixel = self.systems.spawn_blueprint(grass)
-            pixel.position = Vec3(
-                self.rng.randint(int(w / 2), int(w) - 1) * TILE_UNITS,
-                self.rng.randint(2, h - 2) * TILE_UNITS,
-                0.0,
-            )
+    
 
     def spawn_pixel(self, definition, owner, x, y):
         """Create a pixel from a blueprint definition at (x, y) for an owner (a player id, or None) and record who owns it.

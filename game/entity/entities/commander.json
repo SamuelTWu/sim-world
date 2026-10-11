@@ -1,0 +1,26 @@
+{
+    "name": "pixel_commander",
+    "tags": ["pixel", "commander", "test"],
+    "health": 1.0,
+    "energy": 1.0,
+    "slots": 6,
+    "size": 1,
+    "sprite": {
+        "shape": [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]],
+        "color": [255, 120, 200],
+        "size": [32, 32],
+        "layer": 2
+    },
+    "traits": {
+        "command": {"move": true, "attack": true, "spawn": true, "transfer": true, "drop": true},
+        "move": {"speed": 2.0},
+        "attack": {},
+        "spawn": {"blueprint": "", "cooldown_ticks": 20},
+        "transfer": {},
+        "drop": {}
+    },
+    "inventory": {"iron": 3, "seeds": 1},
+    "components": {
+        "species": "pixel_commander"
+    }
+}

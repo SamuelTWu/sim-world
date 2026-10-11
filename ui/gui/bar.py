@@ -33,6 +33,8 @@ class Bar:
         self.cards = []
         self.selected = None
         self.on_select = None
+        self.on_new = None
+        self.editing = False
         self.tray_scroll = 0
         self.empty_text = "No saved blueprints yet."
 
@@ -67,15 +69,25 @@ class Bar:
         width = max(40, min(self.px(BUTTON_WIDTH), room // count))
         return [(name, label, pygame.Rect(row.x + margin + index * (width + margin), row.y + margin, width, row.height - margin * 2)) for index, (name, label) in enumerate(BUTTONS)]
 
-    def card_rects(self, area):
+    def slot_rect(self, area, index):
         tray, margin = self.tray_rect(area), self.px(MARGIN)
         width = self.px(CARD_WIDTH)
-        return [(card, pygame.Rect(tray.x + margin + index * (width + margin) - self.tray_scroll, tray.y + margin, width, tray.height - margin * 2)) for index, card in enumerate(self.cards)]
+        return pygame.Rect(tray.x + margin + index * (width + margin) - self.tray_scroll, tray.y + margin, width, tray.height - margin * 2)
+
+    def new_rect(self, area):
+        """The "+ New blueprint" card: always the first one in the tray."""
+        return self.slot_rect(area, 0)
+
+    def card_rects(self, area):
+        return [(card, self.slot_rect(area, index + 1)) for index, card in enumerate(self.cards)]
 
     def clamp_tray(self, area):
         margin = self.px(MARGIN)
-        total = len(self.cards) * (self.px(CARD_WIDTH) + margin) + margin
+        total = (len(self.cards) + 1) * (self.px(CARD_WIDTH) + margin) + margin
         self.tray_scroll = max(0, min(self.tray_scroll, total - area.width))
+
+    def new_at(self, pos, area):
+        return self.tray_rect(area).collidepoint(pos) and self.new_rect(area).collidepoint(pos)
 
     def card_at(self, pos, area):
         if not self.tray_rect(area).collidepoint(pos):
@@ -100,7 +112,7 @@ class Bar:
             if event.button == 1:
                 card = self.card_at(pos, area)
                 button = next((name for name, _, rect in self.button_rects(area) if rect.collidepoint(pos)), None)
-                self.pressed = ("card", card) if card else ("button", button) if button else ("bar", None)
+                self.pressed = ("card", card) if card else ("new", None) if self.expanded and self.new_at(pos, area) else ("button", button) if button else ("bar", None)
 
             return True
 
@@ -113,7 +125,9 @@ class Bar:
             if pressed is not None:
                 kind, name = pressed
 
-                if kind == "card" and self.card_at(pos, area) == name and self.on_select is not None:
+                if kind == "new" and self.expanded and self.new_at(pos, area) and self.on_new is not None:
+                    self.on_new()
+                elif kind == "card" and self.card_at(pos, area) == name and self.on_select is not None:
                     self.on_select(name)
                 elif kind == "button" and name in self.handlers and any(n == name and rect.collidepoint(pos) for n, _, rect in self.button_rects(area)):
                     self.handlers[name]()
@@ -148,11 +162,12 @@ class Bar:
         pygame.draw.line(surface, theme.BORDER, (tray.x, tray.bottom - 1), (tray.right, tray.bottom - 1), 1)
         self.clamp_tray(area)
 
-        if not self.cards:
-            painter.text(surface, self.empty_text, tray.center, size=self.px(24), color=theme.MUTED, max_width=tray.width - margin * 2, center=True)
-            return
-
         surface.set_clip(tray)
+        self.draw_new_card(surface, painter, self.new_rect(area), mouse, tray)
+
+        if not self.cards:
+            first = self.new_rect(area).right + margin
+            painter.text(surface, self.empty_text, (first, tray.centery), size=self.px(24), color=theme.MUTED, max_width=tray.right - first - margin, center=False)
 
         for card, rect in self.card_rects(area):
             if rect.right < tray.x or rect.x > tray.right:
@@ -170,3 +185,15 @@ class Bar:
             painter.text(surface, card["summary"], (rect.x + self.px(12), rect.bottom - self.px(32)), size=self.px(21), color=theme.MUTED, max_width=rect.width - self.px(24))
 
         surface.set_clip(None)
+
+    def draw_new_card(self, surface, painter, rect, mouse, tray):
+        if rect.right < tray.x:
+            return
+
+        hovered, active = rect.collidepoint(mouse) and tray.collidepoint(mouse), self.editing
+        fill = theme.mix(theme.ACCENT, theme.PANEL, 0.55) if active else (theme.PANEL_LIGHT if hovered else theme.PANEL_DARK)
+        pygame.draw.rect(surface, fill, rect, border_radius=self.px(8))
+        pygame.draw.rect(surface, theme.ACCENT if active or hovered else theme.BORDER, rect, width=2, border_radius=self.px(8))
+        painter.text(surface, "+", (rect.centerx, rect.y + self.px(34)), size=self.px(56), color=theme.ACCENT, center=True)
+        painter.text(surface, "New blueprint", (rect.centerx, rect.y + self.px(76)), size=self.px(26), center=True, max_width=rect.width - self.px(16))
+        painter.text(surface, "Design your own pixel", (rect.centerx, rect.y + self.px(100)), size=self.px(20), color=theme.MUTED, center=True, max_width=rect.width - self.px(16))

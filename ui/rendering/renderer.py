@@ -44,6 +44,7 @@ class Renderer:
         self._fitted_world_size = None
 
         self.gui = Gui()
+        self.gui.on_blueprints_changed = lambda: load_sprites(ENTITY_FOLDER)
         self.selection = Selection(self.gui)
         load_sprites(ENTITY_FOLDER)
 
@@ -158,8 +159,13 @@ class Renderer:
 
         return True
 
+    def take_save_requests(self):
+        """Blueprints the player designed and saved in the editor since the last call, as [(name, definition)]. The game sends them as `save_blueprint` commands."""
+        return self.gui.take_saves()
+
     def update(self, delta_time):
         self.camera.update(delta_time)
+        self.gui.update()
 
     def render(self, view):
         """Draw one frame from a View (see server/replica.py). This is the renderer's only source of game data."""

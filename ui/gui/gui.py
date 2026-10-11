@@ -1,12 +1,16 @@
 import time
+from pathlib import Path
 
 import pygame
 
 from . import theme
 from .bar import Bar
 from .blueprints.blueprint_panel import BlueprintSidebar
-from .blueprints.blueprints import load_blueprints, summary
-from .tech.tech_window import TechWindow
+from .blueprints.blueprint_editor import BlueprintEditor
+from .blueprints import DEFAULT_FOLDER, load_blueprints, summary
+from .blueprints.catalog import behavior_catalog
+from .blueprints.editor_model import blueprint_id
+from tech.tech_window import TechWindow
 from .widgets import Painter
 
 REFERENCE_SIZE = (1800, 1000)
@@ -14,6 +18,7 @@ MIN_SCALE = 0.7
 MAX_SCALE = 2.0
 DRAG_START = 8
 NOTICE_SECONDS = 4.0
+SAVE_WAIT = 5.0
 
 WINDOWS = {"tech": TechWindow}
 
@@ -33,7 +38,13 @@ class Gui:
     a window) adds (blueprint id, screen position) to `drops`; the renderer turns that into a world position and
     the game sends the `place` command (the player creating a pixel; `spawn` is a pixel creating another). A short press on a card still selects it. Esc cancels a drag.
 
-    Esc closes things from the top: a drag, a window, then the sidebar, then the tray, and only then opens the menu.
+    "+ New blueprint" (the first card in the tray) opens the sidebar as an editor. Save queues (name, definition) in `saves`;
+    the game sends it as the `save_blueprint` command. The server answers an error only when it refuses, so success is
+    noticed by the new file appearing in the blueprint folder (update(), at most SAVE_WAIT seconds); then the tray is
+    reloaded, `on_blueprints_changed` is called (the renderer reloads sprites with it) and the new blueprint is shown.
+
+    Esc closes things from the top: a text field's focus, a drag, a window, then the sidebar (an editor with unsaved changes
+    asks twice), then the tray, and only then opens the menu.
     """
 
     def __init__(self, blueprint_folder=None):
@@ -47,17 +58,22 @@ class Gui:
         self.drag = None
         self.drops = []
         self.notice = None
+        self.saves = []
+        self.saving = None
+        self.on_blueprints_changed = None
 
         for name in WINDOWS:
             self.bar.handlers[name] = lambda name=name: self.toggle(name)
 
         self.bar.handlers["blueprints"] = self.toggle_blueprints
         self.bar.on_select = self.select_blueprint
+        self.bar.on_new = self.open_editor
 
     def area(self):
         width, height = pygame.display.get_surface().get_size()
         self.scale = max(MIN_SCALE, min(MAX_SCALE, min(width / REFERENCE_SIZE[0], height / REFERENCE_SIZE[1])))
         self.bar.scale = self.sidebar.scale = self.scale
+        self.bar.editing = self.sidebar.editing
         self.bar.active = set(self.windows) | ({"blueprints"} if self.bar.expanded else set())
         return pygame.Rect(0, 0, width, height)
 
@@ -100,7 +116,7 @@ class Gui:
         self.bar.cards = [{"id": blueprint.id, "name": blueprint.name, "sub": blueprint.kind, "color": blueprint.color, "summary": summary(blueprint)} for blueprint in blueprints]
         self.bar.empty_text = "No saved blueprints yet." if not problems else problems[0]
 
-        if self.bar.selected not in self.blueprints:
+        if self.bar.selected not in self.blueprints and not self.sidebar.editing:
             self.close_sidebar()
 
     def collapse_blueprints(self):
@@ -113,9 +129,58 @@ class Gui:
             self.close_sidebar()
             return
 
+        if self.sidebar.editing and not self.sidebar.try_close():
+            return
+
         if blueprint_id in self.blueprints:
             self.bar.selected = blueprint_id
             self.sidebar.show(self.blueprints[blueprint_id])
+
+    def open_editor(self):
+        """The "+ New blueprint" card: the sidebar becomes a blueprint editor (a second click keeps the one already open)."""
+        if self.sidebar.editing:
+            return
+
+        self.bar.selected = None
+        self.sidebar.show_editor(BlueprintEditor(behavior_catalog(), taken=self.blueprints))
+
+    def take_saves(self):
+        saves, self.saves = self.saves, []
+        return saves
+
+    def queue_save(self, name, definition):
+        self.saves.append((name, definition))
+        self.saving = {"id": blueprint_id(name), "name": name, "until": time.monotonic() + SAVE_WAIT}
+
+    def save_failed(self, reason=None):
+        """The server refused the save (or it could not be sent): the editor stays open for another try."""
+        self.saving = None
+
+        if self.sidebar.editor is not None:
+            self.sidebar.editor.saving = False
+            self.sidebar.editor.say(reason or "The server did not save it")
+
+    def update(self):
+        """Once a frame: notices the saved blueprint's file appearing."""
+        if self.saving is None:
+            return
+
+        folder = Path(self.blueprint_folder) if self.blueprint_folder else DEFAULT_FOLDER
+        saved = self.saving
+
+        if (folder / f"{saved['id']}.json").exists():
+            self.saving = None
+            self.load_blueprints()
+
+            if self.on_blueprints_changed is not None:
+                self.on_blueprints_changed()
+
+            self.bar.selected = None
+            self.sidebar.close()
+            self.select_blueprint(saved["id"])
+            self.notify(f"Saved '{saved['name']}'. Drag its card onto the map to place it.", good=True)
+        elif time.monotonic() > saved["until"]:
+            self.save_failed("No sign of the new file yet. If the server saved it, reopen the tray.")
 
     def close_sidebar(self):
         self.bar.selected = None
@@ -125,9 +190,9 @@ class Gui:
         drops, self.drops = self.drops, []
         return drops
 
-    def notify(self, text, seconds=NOTICE_SECONDS):
-        """Shows a short message at the top of the screen."""
-        self.notice = (text, time.monotonic() + seconds)
+    def notify(self, text, seconds=NOTICE_SECONDS, good=False):
+        """Shows a short message at the top of the screen (red-edged, or green when `good`)."""
+        self.notice = (text, time.monotonic() + seconds, good)
 
     def over_map(self, pos, area):
         """True if pos is on the map: not on the bar, the sidebar or a window."""
@@ -179,6 +244,8 @@ class Gui:
         self.drag = None
         self.drops = []
         self.notice = None
+        self.saves = []
+        self.saving = None
         for name in list(self.windows):
             self.close(name)
 
@@ -209,6 +276,10 @@ class Gui:
         area = self.area()
         play = self.sync(area)
 
+        if self.sidebar.typing and event.type in (pygame.KEYDOWN, pygame.KEYUP):
+            self.sidebar.handle_event(event, area, self.bar.rect(area).y, self.painter)
+            return True
+
         if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
             if self.drag is not None and self.drag["active"]:
                 self.drag = None
@@ -219,7 +290,9 @@ class Gui:
                 return True
 
             if self.sidebar.is_open:
-                self.close_sidebar()
+                if self.sidebar.try_close():
+                    self.close_sidebar()
+
                 return True
 
             if self.bar.expanded:
@@ -285,7 +358,7 @@ class Gui:
         if self.notice is None:
             return
 
-        text, until = self.notice
+        text, until, good = self.notice
 
         if time.monotonic() > until:
             self.notice = None
@@ -295,5 +368,5 @@ class Gui:
         width = min(area.width - self.px(40), self.painter.measure(text, size)[0] + self.px(40))
         box = pygame.Rect(area.centerx - width // 2, area.y + self.px(16), width, self.px(46))
         pygame.draw.rect(surface, theme.PANEL_DARK, box, border_radius=self.px(10))
-        pygame.draw.rect(surface, theme.BAD, box, width=2, border_radius=self.px(10))
+        pygame.draw.rect(surface, theme.GOOD if good else theme.BAD, box, width=2, border_radius=self.px(10))
         self.painter.text(surface, text, box.center, size=size, max_width=width - self.px(24), center=True)

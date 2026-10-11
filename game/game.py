@@ -84,6 +84,15 @@ class Game:
             else:
                 self.sent[seq] = "place"
 
+    def send_saves(self):
+        for name, definition in self.renderer.take_save_requests():
+            seq = self.client.command("save_blueprint", {"name": name, "definition": definition})
+
+            if seq is None:
+                self.renderer.gui.save_failed("Could not send: the connection is not usable")
+            else:
+                self.sent[seq] = "save_blueprint"
+
     def send_acts(self):
         for args in self.renderer.take_act_requests():
             seq = self.client.command("act", args)
@@ -97,6 +106,11 @@ class Game:
         for message in messages:
             if message["type"] == proto.ERROR:
                 what = self.sent.pop(message.get("seq"), None)
+
+                if what == "save_blueprint":
+                    self.renderer.gui.save_failed(message["message"])
+                    continue
+
                 self.renderer.gui.notify(f"Could not {what}: {message['message']}" if what else message["message"])
 
         if len(self.sent) > 64:
@@ -168,6 +182,7 @@ class Game:
                     continue
                 self.send_places()
                 self.send_acts()
+                self.send_saves()
                 self.show_errors(self.client.poll())
                 self.renderer.update(delta_time)
                 self.renderer.render(self.client.view())

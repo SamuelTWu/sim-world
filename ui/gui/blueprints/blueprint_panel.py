@@ -11,7 +11,11 @@ LABEL_SHARE = 0.42
 
 
 class BlueprintSidebar:
-    """A panel down the right side of the screen showing one blueprint's attributes. Scrolls with the wheel."""
+    """A panel down the right side of the screen showing one blueprint's attributes. Scrolls with the wheel.
+
+    It has a second mode: `show_editor(editor)` turns it into the blueprint editor (blueprint_editor.py) for making a new
+    blueprint. The editor draws and handles the whole panel; this class only chooses which of the two is shown.
+    """
 
     def __init__(self):
         self.scale = 1.0
@@ -20,10 +24,35 @@ class BlueprintSidebar:
         self.scroll = 0
         self.pressed = False
         self.close_requested = False
+        self.editor = None
 
     @property
     def is_open(self):
-        return self.blueprint is not None
+        return self.blueprint is not None or self.editor is not None
+
+    @property
+    def editing(self):
+        return self.editor is not None
+
+    @property
+    def typing(self):
+        """True while a text field in the editor has the keyboard."""
+        return self.editor is not None and self.editor.typing
+
+    def show_editor(self, editor):
+        self.close()
+        self.editor = editor
+        self.close_requested = False
+
+    def try_close(self):
+        """Closes now, or (an editor with unsaved changes) asks first. Returns True if it may close."""
+        if self.editor is None:
+            return True
+
+        self.editor.request_close()
+        closing = self.editor.close_requested
+        self.editor.close_requested = False
+        return closing
 
     def px(self, value):
         return max(1, round(value * self.scale))
@@ -37,6 +66,7 @@ class BlueprintSidebar:
 
     def close(self):
         self.blueprint = None
+        self.editor = None
         self.sections = []
         self.pressed = False
 
@@ -88,6 +118,16 @@ class BlueprintSidebar:
         panel = self.rect(area, bottom)
         pos = getattr(event, "pos", None)
 
+        if self.editor is not None:
+            self.editor.scale = self.scale
+            used = self.editor.handle_event(event, panel, painter)
+
+            if self.editor.close_requested:
+                self.editor.close_requested = False
+                self.close_requested = True
+
+            return used
+
         if event.type == getattr(pygame, "MOUSEWHEEL", None):
             if not panel.collidepoint(pygame.mouse.get_pos()):
                 return False
@@ -114,6 +154,11 @@ class BlueprintSidebar:
 
     def draw(self, surface, painter, area, bottom):
         if not self.is_open:
+            return
+
+        if self.editor is not None:
+            self.editor.scale = self.scale
+            self.editor.draw(surface, painter, self.rect(area, bottom))
             return
 
         panel, margin = self.rect(area, bottom), self.px(MARGIN)
@@ -168,4 +213,4 @@ class BlueprintSidebar:
 
         footer = pygame.Rect(panel.x, panel.bottom - self.px(40), panel.width, self.px(40))
         pygame.draw.line(surface, theme.BORDER, footer.topleft, footer.topright, 1)
-        painter.text(surface, "Drag onto the map to spawn: coming soon", (footer.x + margin, footer.y + self.px(10)), size=self.px(20), color=theme.MUTED, max_width=footer.width - margin * 2)
+        painter.text(surface, "Drag its card from the tray onto the map to place it", (footer.x + margin, footer.y + self.px(10)), size=self.px(20), color=theme.MUTED, max_width=footer.width - margin * 2)

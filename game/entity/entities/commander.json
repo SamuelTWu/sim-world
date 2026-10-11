@@ -19,6 +19,9 @@
         "transfer": {},
         "drop": {}
     },
+    "props": {
+        "snap_to_grid": 32
+    },
     "inventory": {"iron": 3, "seeds": 1},
     "components": {
         "species": "pixel_commander"

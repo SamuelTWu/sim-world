@@ -30,7 +30,9 @@ Changing who may be commanded:  add or remove functions in GATES (each returns a
 execute() is the only entry point the server calls. It never raises for bad input.
 """
 import importlib
+import json
 import math
+import os
 import re
 import traceback
 from dataclasses import dataclass, field
@@ -95,6 +97,28 @@ class CommandContext:
             return self.sim.entity_manager.entity_factory.load_definition(blueprint_id)
         except (OSError, ValueError):
             return None
+
+    @property
+    def behaviors(self):
+        """The BehaviorManager: what behaviors exist, their parameters and costs."""
+        return self.sim.behavior_manager
+
+    def blueprint_exists(self, blueprint_id):
+        return (self.sim.entity_manager.entity_factory.definitions_path / f"{blueprint_id}.json").exists()
+
+    def write_blueprint(self, blueprint_id, definition):
+        """Save a definition as <id>.json next to the other blueprints (what `place` and the client's tray read). Never overwrites."""
+        factory = self.sim.entity_manager.entity_factory
+        path = factory.definitions_path / f"{blueprint_id}.json"
+        temporary = path.with_name(f".{blueprint_id}.json.tmp")
+        temporary.write_text(json.dumps(definition, indent=4) + "\n", encoding="utf-8")
+
+        try:
+            os.link(temporary, path)  # fails if the file exists, so nothing is ever overwritten
+        finally:
+            temporary.unlink(missing_ok=True)
+
+        factory.definitions.pop(blueprint_id, None)
 
     def spawn(self, definition, player_id, x, y):
         """Create a pixel from a definition at (x, y), owned by player_id, and record that the player owns it.

@@ -20,4 +20,5 @@ class Command(Behavior):
         "attack": Param(default=False, description="Player may order it to attack"),
         "spawn": Param(default=False, description="Player may order it to create another pixel"),
         "transfer": Param(default=False, description="Player may order it to move resources or carry things"),
+        "drop": Param(default=False, description="Player may order it to put resources on the ground"),
     }

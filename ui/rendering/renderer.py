@@ -5,6 +5,7 @@ import pygame
 from .camera import Camera
 from .world_renderer import WorldRenderer
 from .entity_renderer import EntityRenderer
+from .selection import Selection
 from .sprites import load_sprites
 from ..gui.gui import Gui
 
@@ -26,6 +27,8 @@ class Renderer:
         self.restart_requested = False
         self.menu_requested = False
         self.place_requests = []
+        self.view_entities = []
+        self.player_id = None
 
         self.fullscreen = False
         self.windowed_size = self.fit_to_desktop(width, height)
@@ -41,6 +44,7 @@ class Renderer:
         self._fitted_world_size = None
 
         self.gui = Gui()
+        self.selection = Selection(self.gui)
         load_sprites(ENTITY_FOLDER)
 
         self.debug_map_index = -1
@@ -107,6 +111,10 @@ class Renderer:
         requests, self.place_requests = self.place_requests, []
         return requests
 
+    def take_act_requests(self):
+        """Orders the player clicked since the last call, as the arguments of the `act` command. The game sends them."""
+        return self.selection.take_requests()
+
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -115,7 +123,13 @@ class Renderer:
             if event.type in RESIZE_EVENTS:
                 self.resized()
 
+            if self.selection.drag is not None and event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP) and self.selection.handle_event(event, self.view_entities, self.player_id, self.camera, self.screen_to_world):
+                continue
+
             if self.gui.handle_event(event):
+                continue
+
+            if self.selection.handle_event(event, self.view_entities, self.player_id, self.camera, self.screen_to_world):
                 continue
 
             if event.type == pygame.KEYDOWN:
@@ -148,34 +162,39 @@ class Renderer:
         self.camera.update(delta_time)
 
     def render(self, view):
-                world, maps, features, entities = view.world, view.maps, view.features, view.entities
-        
-                if world is not None:
-                    world_size = (world.width, world.height)
-                    if world_size != self._fitted_world_size:
-                        self.camera.fit_world(*world_size)
-                        self._fitted_world_size = world_size
-        
-                self.screen.fill((0, 0, 0))
-        
-                if maps:
-                    self.debug_map_names = maps.names()
-        
-                if features:
-                    self.debug_feature_names = features.names()
-        
-                if self.debug_map_index >= 0 and maps and self.debug_map_names:
-                    self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
-                elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
-                    self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
-                else:
-                    self.world_renderer.render_world(world)
-        
-                if entities:
-                    self.entity_renderer.render_entities(entities)
-        
-                self.gui.draw(self.screen)
-                pygame.display.flip()
+        """Draw one frame from a View (see server/replica.py). This is the renderer's only source of game data."""
+        world, maps, features, entities = view.world, view.maps, view.features, view.entities
+        self.view_entities, self.player_id = list(entities or ()), getattr(view, "player_id", None)
+        self.selection.prune(self.view_entities, self.player_id)
+
+        if world is not None:
+            world_size = (world.width, world.height)
+            if world_size != self._fitted_world_size:
+                self.camera.fit_world(*world_size)
+                self._fitted_world_size = world_size
+
+        self.screen.fill((0, 0, 0))
+
+        if maps:
+            self.debug_map_names = maps.names()
+
+        if features:
+            self.debug_feature_names = features.names()
+
+        if self.debug_map_index >= 0 and maps and self.debug_map_names:
+            self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
+        elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
+            self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
+        else:
+            self.world_renderer.render_world(world)
+
+        if entities:
+            self.entity_renderer.render_entities(entities)
+
+        self.selection.draw_world(self.screen, self.view_entities, self.camera)
+        self.gui.draw(self.screen)
+        self.selection.draw_menu(self.screen)
+        pygame.display.flip()
 
     def tick(self, fps=60):
         return self.clock.tick(fps) / 1000.0

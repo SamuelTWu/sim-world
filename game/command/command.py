@@ -21,6 +21,9 @@ A pixel needs BOTH the "command" permission for the command AND the behavior of 
 
 Adding a command:  new file in game/command/commands/. Subclass Command, set `name`, implement run(), decorate
 it with @command. Use the helpers below (clean_args, as_ids, as_point, select_pixels, issue_order).
+Selecting several pixels: every pixel command takes "ids", or "box": [x0, y0, x1, y1] (a drag-select rectangle in world units),
+which the server turns into the ids of the player's own pixels inside it that may be given that command.
+Clicking: the `act` command (commands/act.py) turns one click at a point into any of the other commands.
 Adding a command also means: a behavior with the same name, and a line in the `command` behavior's params.
 Changing who may be commanded:  add or remove functions in GATES (each returns a reason to refuse, or None).
 
@@ -39,6 +42,7 @@ COMMAND_TRAIT = "command"
 ORDER_KEY = "order"
 ORDER_ISSUED = "order_issued"
 MAX_IDS = 256
+PICK_RADIUS = TILE_UNITS * 0.75
 
 COMMANDS = {}
 GATES = []
@@ -74,6 +78,10 @@ class CommandContext:
     @property
     def tick(self):
         return self.sim.tick
+
+    def pixels(self):
+        """Every living pixel."""
+        return self.sim.entity_manager.all()
 
     def get_entity(self, entity_id):
         try:
@@ -188,6 +196,38 @@ def as_point(value, ctx):
     return x, y
 
 
+def as_box(value, ctx):
+    """[x0, y0, x1, y1] in world units, in any corner order, clamped to the world. Returns (left, top, right, bottom)."""
+    if not isinstance(value, (list, tuple)) or len(value) != 4 or not all(is_number(item) for item in value):
+        raise Rejected("the box must be [x0, y0, x1, y1]")
+
+    try:
+        x0, y0, x1, y1 = (float(item) for item in value)
+    except (OverflowError, ValueError):
+        raise Rejected("the box must be finite numbers") from None
+
+    if not all(math.isfinite(item) for item in (x0, y0, x1, y1)):
+        raise Rejected("the box must be finite numbers")
+
+    width, height = ctx.world.width * TILE_UNITS, ctx.world.height * TILE_UNITS
+    left, right = sorted((max(0.0, min(width, x0)), max(0.0, min(width, x1))))
+    top, bottom = sorted((max(0.0, min(height, y0)), max(0.0, min(height, y1))))
+    return left, top, right, bottom
+
+
+def pick_entity(ctx, x, y, accept, radius=PICK_RADIUS):
+    """The nearest living pixel within `radius` of (x, y) that accept(pixel) allows, or None. Ties go to the lowest id."""
+    best, best_distance = None, radius
+
+    for pixel in sorted(ctx.pixels(), key=lambda entity: entity.id):
+        distance = math.hypot(pixel.position.x - x, pixel.position.y - y)
+
+        if distance <= best_distance and accept(pixel):
+            best, best_distance = pixel, distance
+
+    return best
+
+
 def as_blueprint(value, ctx):
     """Resolve a blueprint id (a file name in game/entity/entities, without .json) to (id, definition)."""
     if not isinstance(value, str) or not BLUEPRINT_ID.match(value):
@@ -250,6 +290,11 @@ def issue_order(ctx, entity, order):
 class Command:
     name = ""
     strict = False
+    selects = True
+
+    def selection_name(self, args):
+        """The command name a drag-selected box is filtered by (a box only picks pixels that may be given this command)."""
+        return self.name
 
     def run(self, ctx, player_id, args):
         raise NotImplementedError
@@ -269,6 +314,35 @@ def load_commands():
         loaded = True
 
 
+def resolve_box(ctx, player_id, handler, args):
+    """Turn {"box": [x0, y0, x1, y1]} into {"ids": [...]}: the player's own pixels inside the box that may be given this command.
+
+    This is drag-select done on the server: the client sends the rectangle it dragged (in world units) instead of listing ids,
+    so it works for pixels the client has not heard about yet and does not hit the per-command id limit by accident.
+    """
+    if "ids" in args:
+        raise Rejected("give ids or a box, not both")
+
+    left, top, right, bottom = as_box(args["box"], ctx)
+    name = handler.selection_name(args)
+    ids = sorted(
+        pixel.id
+        for pixel in ctx.pixels()
+        if pixel.owner is not None and pixel.owner == player_id and left <= pixel.position.x <= right and top <= pixel.position.y <= bottom
+        and (not isinstance(name, str) or refusal(ctx, pixel, player_id, name) is None)
+    )
+
+    if not ids:
+        raise Rejected("no pixels in the box can do that")
+
+    if len(ids) > MAX_IDS:
+        raise Rejected(f"{len(ids)} pixels are in the box; at most {MAX_IDS} per command")
+
+    resolved = {key: value for key, value in args.items() if key != "box"}
+    resolved["ids"] = ids
+    return resolved
+
+
 def execute(ctx, player_id, name, args):
     load_commands()
     handler = COMMANDS.get(name) if isinstance(name, str) else None
@@ -277,6 +351,9 @@ def execute(ctx, player_id, name, args):
         return Outcome(False, "unknown command")
 
     try:
+        if handler.selects and isinstance(args, dict) and "box" in args:
+            args = resolve_box(ctx, player_id, handler, args)
+
         return handler.run(ctx, player_id, args)
     except Rejected as problem:
         return Outcome(False, str(problem))

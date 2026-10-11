@@ -66,6 +66,7 @@ class Game:
     def shutdown(self):
         self.renderer.gui.reset()
         self.renderer.place_requests.clear()
+        self.renderer.selection.reset()
         self.sent.clear()
         if self.client is not None:
             self.client.close()
@@ -82,6 +83,15 @@ class Game:
                 self.renderer.gui.notify("Could not send: the connection is not usable")
             else:
                 self.sent[seq] = "place"
+
+    def send_acts(self):
+        for args in self.renderer.take_act_requests():
+            seq = self.client.command("act", args)
+
+            if seq is None:
+                self.renderer.gui.notify("Could not send: the connection is not usable")
+            else:
+                self.sent[seq] = args.get("action", "order")
 
     def show_errors(self, messages):
         for message in messages:
@@ -157,6 +167,7 @@ class Game:
                     self.back_to_menu()
                     continue
                 self.send_places()
+                self.send_acts()
                 self.show_errors(self.client.poll())
                 self.renderer.update(delta_time)
                 self.renderer.render(self.client.view())

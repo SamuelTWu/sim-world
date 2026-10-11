@@ -25,6 +25,7 @@ class Place(Command):
     """
 
     name = "place"
+    selects = False
 
     def run(self, ctx, player_id, args):
         clean_args(args, "blueprint", "position")

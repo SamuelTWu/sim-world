@@ -9,7 +9,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-DEFAULT_FOLDER = Path(__file__).resolve().parent.parent / "entity" / "entities"
+DEFAULT_FOLDER = Path(__file__).resolve().parents[3] / "game" / "entity" / "entities"
 
 LEGACY_SECTIONS = {"movement": "Movement", "physics": "Physics", "material": "Material"}
 HANDLED = {"name", "kind", "tags", "sprite", "sprite_id", "components", "visible", "owner", "maxHealth", "health", "currentHealth", "maxEnergy", "energy", "currentEnergy", "props", "needs", "traits", "inventory", "home", "slots", "size", *LEGACY_SECTIONS}

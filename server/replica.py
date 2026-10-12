@@ -1,7 +1,7 @@
 """What the client knows about the game, in the form the renderer reads.
 
 Everything here comes from the client's own generated world or from messages the server sent.
-The renderer is only ever given a View, never a Simulation. This file imports nothing from game/.
+Terrain deltas from the server are applied to its world here too (apply_world_delta). The renderer is only ever given a View, never a Simulation. This file imports nothing from game/.
 """
 from dataclasses import dataclass, field
 
@@ -52,3 +52,27 @@ def apply_tick_update(entities, message):
 
     for entity_id in message.get("leave", ()):
         entities.pop(entity_id, None)
+
+
+def apply_world_delta(world, message, tiles_by_name):
+    """Apply a world_delta's [x, y, tile_name] entries on top of the locally generated world, in order.
+
+    `tiles_by_name` maps a tile name to the Tile object. Entries that are malformed, outside the world, or name a
+    tile this client does not know are skipped. Returns (changed, skipped): the (x, y) of every tile that really
+    changed (for the renderer to redraw), and how many entries were skipped. Applying the same entry twice is harmless.
+    """
+    changed, skipped = [], 0
+
+    for entry in message.get("tiles", ()):
+        try:
+            x, y, name = entry
+            tile = tiles_by_name.get(name)
+
+            if tile is None or isinstance(x, bool) or isinstance(y, bool) or not world.is_inside(x, y):
+                skipped += 1
+            elif world.set_tile(x, y, tile):
+                changed.append((x, y))
+        except (TypeError, ValueError):
+            skipped += 1
+
+    return changed, skipped

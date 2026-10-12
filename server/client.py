@@ -31,7 +31,7 @@ from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidURI
 from websockets.sync.client import connect
 
 from . import protocol as proto
-from .replica import View, apply_tick_update
+from .replica import View, apply_tick_update, apply_world_delta
 
 DEFAULT_URL = "ws://127.0.0.1:8765"
 
@@ -44,11 +44,15 @@ CLOSED = "closed"
 
 
 class Client:
-    def __init__(self, url=DEFAULT_URL, name="player", timeout=10.0, world_builder=None):
+    def __init__(self, url=DEFAULT_URL, name="player", timeout=10.0, world_builder=None, tile_lookup=None):
         self.url = url
         self.name = name
         self.timeout = timeout
         self.world_builder = world_builder
+        self.tile_lookup = tile_lookup
+        self.tiles = None
+        self.changed_tiles = []
+        self.skipped_deltas = 0
         self.state = IDLE
         self.error = None
         self.welcome = None
@@ -102,7 +106,29 @@ class Client:
             if message["type"] == proto.TICK_UPDATE:
                 apply_tick_update(self.entities, message)
 
+            elif message["type"] == proto.WORLD_DELTA:
+                self.apply_delta(message)
+
             messages.append(message)
+
+    def apply_delta(self, message):
+        """Put a world_delta's tile changes onto the locally generated world and remember which tiles changed."""
+        if self.tiles is None:
+            lookup = self.tile_lookup
+
+            if lookup is None:
+                from .worldsync import tiles_by_name as lookup
+
+            self.tiles = lookup()
+
+        changed, skipped = apply_world_delta(self.world, message, self.tiles)
+        self.changed_tiles.extend(changed)
+        self.skipped_deltas += skipped
+
+    def take_changed_tiles(self):
+        """(x, y) of every tile changed by deltas since the last call, then forget them. A renderer that caches terrain redraws these."""
+        changed, self.changed_tiles = self.changed_tiles, []
+        return changed
 
     def send(self, message):
         """Send a protocol message. Returns False if the connection is not usable."""

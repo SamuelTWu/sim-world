@@ -2,6 +2,8 @@
 
     ctrl + left-drag         draws a rectangle on the map and selects your pixels inside it (add shift to add to the selection)
     ctrl + left-click        selects the pixel under it (on empty ground it clears the selection)
+    plain left-click         on one of your pixels (the mouse not moving) asks the server for its attributes: the side panel
+                             shows them with controls to upgrade it (`inspect`, see Renderer.take_inspect_requests)
                              (plain left-drag is the camera's: it pans. Cmd works like ctrl on a Mac.)
     right-click              sends `act` for the selection at that spot: attack a hostile pixel there, otherwise move
     after selecting          a small menu pops up next to the mouse: Move, Attack, Spawn, Drop everything, Pick up.
@@ -45,13 +47,21 @@ class Selection:
         self.menu = None
         self.pending = None
         self.requests = []
+        self.inspects = []
+        self.click = None
         self.right_down = False
         self.swallow_up = False
+
+    def take_inspects(self):
+        inspects, self.inspects = self.inspects, []
+        return inspects
 
     def reset(self):
         self.ids.clear()
         self.drag = self.menu = self.pending = None
         self.requests = []
+        self.inspects = []
+        self.click = None
         self.right_down = self.swallow_up = False
 
     def take_requests(self):
@@ -167,6 +177,13 @@ class Selection:
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and self.drag is not None:
             return self.left_up(event, entities, player_id, camera)
 
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and self.click is not None:
+            click, self.click = self.click, None
+            moved = max(abs(event.pos[0] - click["pos"][0]), abs(event.pos[1] - click["pos"][1]))
+
+            if moved < self.gui.px(DRAG_START) and not self.swallow_up:
+                self.inspects.append(click["id"])
+
         if event.type == pygame.MOUSEBUTTONUP and event.button == 1 and self.swallow_up:
             self.swallow_up = False
             return True
@@ -181,6 +198,7 @@ class Selection:
         return False
 
     def left_down(self, event, entities, player_id, camera, screen_to_world, area):
+        self.click = None
         if self.menu is not None:
             for action, rect in self.item_rects(area):
                 if rect.collidepoint(event.pos):
@@ -204,7 +222,9 @@ class Selection:
             return True
 
         if not pygame.key.get_mods() & CONTROL:
-            return False
+            pixel = self.pixel_at(event.pos, entities, player_id, camera)
+            self.click = {"pos": event.pos, "id": pixel.id} if pixel is not None else None
+            return False  # the camera still gets the press: a click on a pixel is only a click if the mouse does not move
 
         self.drag = {"start": event.pos, "pos": event.pos, "active": False}
         return True

@@ -1,6 +1,6 @@
 import msgpack
 
-from ..server.server import protocol as p
+from server import protocol as p
 
 checks = 0
 
@@ -26,6 +26,7 @@ samples = [
     (p.tick_update(5, enter=[{"id": 1, "x": 1.5}], update=[{"id": 2, "x": 3.0}], leave=[3], events=[{"kind": "fired"}], ack=1), p.SERVER_TYPES),
     (p.tick_update(6), p.SERVER_TYPES),
     (p.world_delta(5, [[10, 10, "stone"], [11, 10, "stone"]]), p.SERVER_TYPES),
+    (p.entity_info(7, {"id": 7, "stats": {"health": 1.0}}, seq=3), p.SERVER_TYPES),
     (p.error(p.COMMAND_REJECTED, "not enough currency", seq=1), p.SERVER_TYPES),
 ]
 

@@ -163,6 +163,8 @@ class Server:
 
         if not outcome.ok:
             self.send(client, proto.error(proto.COMMAND_REJECTED, outcome.reason, seq=message["seq"]))
+        elif outcome.info is not None:
+            self.send(client, proto.entity_info(outcome.info["id"], outcome.info, seq=message["seq"]))
 
     def disconnect(self, client):
         client.closing = True

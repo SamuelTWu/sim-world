@@ -5,12 +5,12 @@ import pygame
 
 from . import theme
 from .bar import Bar
-from .blueprints.blueprint_panel import BlueprintSidebar
-from .blueprints.blueprint_editor import BlueprintEditor
-from .blueprints import DEFAULT_FOLDER, load_blueprints, summary
-from .blueprints.catalog import behavior_catalog
-from .blueprints.editor_model import blueprint_id
-from tech.tech_window import TechWindow
+from .blueprint.blueprint_panel import BlueprintSidebar
+from .blueprint.blueprint_editor import BlueprintEditor
+from .blueprint.blueprints import DEFAULT_FOLDER, load_blueprints, summary
+from .blueprint.catalog import behavior_catalog
+from .blueprint.editor_model import blueprint_id, show_number
+from .tech.tech_window import TechWindow
 from .widgets import Painter
 
 REFERENCE_SIZE = (1800, 1000)
@@ -60,7 +60,10 @@ class Gui:
         self.notice = None
         self.saves = []
         self.saving = None
+        self.edits = []
+        self.pending_edit = None
         self.on_blueprints_changed = None
+        self.sprite_color = None
 
         for name in WINDOWS:
             self.bar.handlers[name] = lambda name=name: self.toggle(name)
@@ -73,7 +76,8 @@ class Gui:
         width, height = pygame.display.get_surface().get_size()
         self.scale = max(MIN_SCALE, min(MAX_SCALE, min(width / REFERENCE_SIZE[0], height / REFERENCE_SIZE[1])))
         self.bar.scale = self.sidebar.scale = self.scale
-        self.bar.editing = self.sidebar.editing
+        editor = self.sidebar.editor
+        self.bar.editing = editor is not None and not editor.editing
         self.bar.active = set(self.windows) | ({"blueprints"} if self.bar.expanded else set())
         return pygame.Rect(0, 0, width, height)
 
@@ -138,7 +142,9 @@ class Gui:
 
     def open_editor(self):
         """The "+ New blueprint" card: the sidebar becomes a blueprint editor (a second click keeps the one already open)."""
-        if self.sidebar.editing:
+        editor = self.sidebar.editor
+
+        if editor is not None and not editor.editing:
             return
 
         self.bar.selected = None
@@ -160,8 +166,54 @@ class Gui:
             self.sidebar.editor.saving = False
             self.sidebar.editor.say(reason or "The server did not save it")
 
+    def take_edits(self):
+        edits, self.edits = self.edits, []
+        return edits
+
+    def show_pixel(self, info):
+        """The sidebar shows one of your pixels (the server's answer to `inspect` or `edit_property`), with controls to upgrade it."""
+        editor = self.sidebar.editor
+        applied = self.pending_edit == info["id"]
+        self.pending_edit = None
+
+        if editor is not None and not editor.editing and editor.dirty:
+            self.notify("Finish or cancel the new blueprint first")
+            return
+
+        if editor is not None and editor.editing and editor.info["id"] == info["id"] and editor.dirty and not applied:
+            return  # clicking the same pixel again must not throw away changes in progress
+
+        self.bar.selected = None
+        color = self.sprite_color(info.get("sprite_id")) if self.sprite_color is not None else None
+        self.sidebar.show_editor(BlueprintEditor(behavior_catalog(), info=info, color=color))
+        self.sidebar.editor.sprite_color = self.sprite_color
+
+        if applied:
+            self.sidebar.editor.say(f"Upgraded. Paid {show_number(info.get('paid', 0))}", True)
+
+    def edit_failed(self, reason=None):
+        """The server refused the upgrade: the panel stays as it is, with the reason."""
+        self.pending_edit = None
+        editor = self.sidebar.editor
+
+        if editor is not None and editor.editing:
+            editor.saving = False
+            editor.say(reason or "The server did not apply it")
+
     def update(self):
-        """Once a frame: notices the saved blueprint's file appearing."""
+        """Once a frame: collects what the editor asks for, and notices a saved blueprint's file appearing."""
+        editor = self.sidebar.editor
+
+        if editor is not None and editor.save_request is not None:
+            self.queue_save(*editor.save_request)
+            editor.save_request = None
+
+        if editor is not None and editor.edit_request is not None:
+            pixel_id, changes = editor.edit_request
+            self.edits.append((pixel_id, changes))
+            self.pending_edit = pixel_id
+            editor.edit_request = None
+
         if self.saving is None:
             return
 
@@ -246,6 +298,8 @@ class Gui:
         self.notice = None
         self.saves = []
         self.saving = None
+        self.edits = []
+        self.pending_edit = None
         for name in list(self.windows):
             self.close(name)
 

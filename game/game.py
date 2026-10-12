@@ -84,6 +84,22 @@ class Game:
             else:
                 self.sent[seq] = "place"
 
+    def send_inspects(self):
+        for pixel_id in self.renderer.take_inspect_requests():
+            seq = self.client.command("inspect", {"id": pixel_id})
+
+            if seq is not None:
+                self.sent[seq] = "inspect"
+
+    def send_edits(self):
+        for pixel_id, changes in self.renderer.take_edit_requests():
+            seq = self.client.command("edit_property", {"id": pixel_id, "set": changes})
+
+            if seq is None:
+                self.renderer.gui.edit_failed("Could not send: the connection is not usable")
+            else:
+                self.sent[seq] = "edit_property"
+
     def send_saves(self):
         for name, definition in self.renderer.take_save_requests():
             seq = self.client.command("save_blueprint", {"name": name, "definition": definition})
@@ -104,11 +120,20 @@ class Game:
 
     def show_errors(self, messages):
         for message in messages:
+            if message["type"] == proto.ENTITY_INFO:
+                self.sent.pop(message.get("seq"), None)
+                self.renderer.gui.show_pixel(message["info"])
+                continue
+
             if message["type"] == proto.ERROR:
                 what = self.sent.pop(message.get("seq"), None)
 
                 if what == "save_blueprint":
                     self.renderer.gui.save_failed(message["message"])
+                    continue
+
+                if what == "edit_property":
+                    self.renderer.gui.edit_failed(message["message"])
                     continue
 
                 self.renderer.gui.notify(f"Could not {what}: {message['message']}" if what else message["message"])
@@ -183,6 +208,8 @@ class Game:
                 self.send_places()
                 self.send_acts()
                 self.send_saves()
+                self.send_inspects()
+                self.send_edits()
                 self.show_errors(self.client.poll())
                 self.renderer.update(delta_time)
                 self.renderer.render(self.client.view())

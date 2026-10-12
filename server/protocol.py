@@ -10,12 +10,12 @@ Rules:
 - Bump PROTOCOL_VERSION whenever a message changes shape.
 
 Client -> server: join, command
-Server -> client: welcome, tick_update, world_delta, error
+Server -> client: welcome, tick_update, world_delta, entity_info, error
 """
 import msgpack
 from msgpack.exceptions import UnpackException
 
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 MAX_MESSAGE_BYTES = 1_000_000
 
 JOIN = "join"
@@ -23,6 +23,7 @@ WELCOME = "welcome"
 COMMAND = "command"
 TICK_UPDATE = "tick_update"
 WORLD_DELTA = "world_delta"
+ENTITY_INFO = "entity_info"
 ERROR = "error"
 
 BAD_MESSAGE = "bad_message"
@@ -32,7 +33,7 @@ SERVER_FULL = "server_full"
 COMMAND_REJECTED = "command_rejected"
 
 CLIENT_TYPES = frozenset({JOIN, COMMAND})
-SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ERROR})
+SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ENTITY_INFO, ERROR})
 
 # type -> (required fields, optional fields), each as {field: python type}
 SCHEMAS = {
@@ -41,6 +42,7 @@ SCHEMAS = {
     COMMAND: ({"seq": int, "name": str, "args": dict}, {}),
     TICK_UPDATE: ({"tick": int}, {"enter": list, "update": list, "leave": list, "events": list, "ack": int}),
     WORLD_DELTA: ({"tick": int, "tiles": list}, {}),
+    ENTITY_INFO: ({"id": int, "info": dict}, {"seq": int}),
     ERROR: ({"code": str, "message": str}, {"seq": int}),
 }
 
@@ -76,6 +78,16 @@ def tick_update(tick, enter=None, update=None, leave=None, events=None, ack=None
 
 def world_delta(tick, tiles):
     return {"type": WORLD_DELTA, "tick": tick, "tiles": list(tiles)}
+
+
+def entity_info(entity_id, info, seq=None):
+    """One pixel's attributes, sent to its owner in answer to `inspect` or `edit_property` (seq is that command's)."""
+    result = {"type": ENTITY_INFO, "id": entity_id, "info": info}
+
+    if seq is not None:
+        result["seq"] = seq
+
+    return result
 
 
 def error(code, message, seq=None):

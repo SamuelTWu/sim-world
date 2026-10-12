@@ -61,6 +61,7 @@ class Outcome:
     reason: str = ""
     applied: list = field(default_factory=list)
     ignored: dict = field(default_factory=dict)
+    info: dict | None = None  # data to send back to the asking player (see `inspect`): the server sends it as an "entity_info" message
 
 
 class CommandContext:

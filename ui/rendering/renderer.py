@@ -6,7 +6,7 @@ from .camera import Camera
 from .world_renderer import WorldRenderer
 from .entity_renderer import EntityRenderer
 from .selection import Selection
-from .sprites import load_sprites
+from .sprites import get_sprite, load_sprites
 from ..gui.gui import Gui
 
 
@@ -45,6 +45,7 @@ class Renderer:
 
         self.gui = Gui()
         self.gui.on_blueprints_changed = lambda: load_sprites(ENTITY_FOLDER)
+        self.gui.sprite_color = lambda sprite_id: get_sprite(sprite_id).color
         self.selection = Selection(self.gui)
         load_sprites(ENTITY_FOLDER)
 
@@ -158,6 +159,14 @@ class Renderer:
             self.place_requests.append((blueprint_id, x, y))
 
         return True
+
+    def take_inspect_requests(self):
+        """Pixels the player clicked (to look at their attributes) since the last call, as [pixel id]. The game sends them as `inspect` commands."""
+        return self.selection.take_inspects()
+
+    def take_edit_requests(self):
+        """Upgrades the player applied in the side panel since the last call, as [(pixel id, changes)]. The game sends them as `edit_property` commands."""
+        return self.gui.take_edits()
 
     def take_save_requests(self):
         """Blueprints the player designed and saved in the editor since the last call, as [(name, definition)]. The game sends them as `save_blueprint` commands."""

@@ -4,6 +4,7 @@ No pygame here, so it can be tested on its own. The editor (blueprint_editor.py)
 The finished blueprint (`definition()`) is sent to the server's `save_blueprint` command, which checks it again: nothing
 here is trusted, it just keeps the player from making choices the server would refuse.
 """
+import copy
 import math
 import re
 
@@ -110,6 +111,72 @@ class EditorModel:
         self.behaviors = {}
         self.inventory = {}
         self._linked = set()
+        self.pixel = None  # the server's description of the pixel being edited (see from_info); None when designing a new blueprint
+        self.original = None
+
+    @classmethod
+    def from_info(cls, catalog, info):
+        """Editing a pixel that exists: `info` is the server's "entity_info" (edit_property.describe). Behaviors the catalog does not know are left out."""
+        model = cls(catalog)
+        model.pixel = info
+        model.name = info.get("name", "pixel")
+        model.stats = {key: info["stats"][key] for key in STATS}
+        model.behaviors = {name: {key: values.get(key, spec["default"]) for key, spec in catalog[name]["params"].items()} for name, values in info["traits"].items() if name in catalog and isinstance(values, dict)}
+        model.inventory = dict(info.get("inventory", {}))
+        model.original = copy.deepcopy((model.stats, model.behaviors))
+        model._linked = set(model.behaviors)
+        return model
+
+    @property
+    def editing(self):
+        return self.pixel is not None
+
+    def removable(self, name):
+        """In a new blueprint everything can be removed; on an existing pixel only what was added in this session."""
+        return self.original is None or name not in self.original[1]
+
+    def stat_limits(self, key):
+        label, default, low, high, whole = STATS[key]
+
+        if self.pixel is not None:
+            low, high = self.pixel.get("limits", {}).get(key, (low, high))
+
+            if key == "slots":
+                low = max(low, self.pixel.get("slots_used", 0))
+
+        return low, high
+
+    def stat_locked(self, key):
+        return self.pixel is not None and key == "size" and bool(self.pixel.get("carried"))
+
+    def stat_price(self, key):
+        return float(self.pixel.get("prices", {}).get(key, 0.0)) if self.pixel is not None else 0.0
+
+    def changes(self):
+        """What differs from the pixel as it is, as the paths `edit_property` takes."""
+        stats, behaviors = self.original
+        changes = {key: value for key, value in self.stats.items() if value != stats[key]}
+
+        for name, values in self.behaviors.items():
+            if name not in behaviors:
+                changes[f"traits.{name}"] = dict(values)
+                continue
+
+            for key, value in values.items():
+                if value != behaviors[name].get(key):
+                    changes[f"traits.{name}.{key}"] = value
+
+        return changes
+
+    def upgrade_cost(self):
+        """What the server will charge for changes(): new behavior prices minus old (never negative), plus the stat prices per unit raised."""
+        stats, behaviors = self.original
+        cost = max(0.0, self.traits_cost(self.behaviors) - self.traits_cost(behaviors))
+
+        for key, value in self.stats.items():
+            cost += max(0.0, value - stats[key]) * self.stat_price(key)
+
+        return cost
 
     # --- name ---------------------------------------------------------------------------------------------------
 
@@ -136,8 +203,13 @@ class EditorModel:
     # --- look and stats ------------------------------------------------------------------------------------------
 
     def nudge_stat(self, key, direction, factor=1):
-        label, default, low, high, whole = STATS[key]
+        label, default, _, _, whole = STATS[key]
+        low, high = self.stat_limits(key)
         step = 1 if whole else 0.5
+
+        if self.stat_locked(key):
+            return
+
         value = self.stats[key] + direction * step * factor
         value = max(low, min(high, value))
         self.stats[key] = int(value) if whole else round(value, 3)
@@ -246,9 +318,12 @@ class EditorModel:
         self.behaviors[name][key] = str(self.behaviors[name][key] or "")[:-1]
 
     def cost(self):
+        return self.traits_cost(self.behaviors)
+
+    def traits_cost(self, behaviors):
         total = 0.0
 
-        for name, values in self.behaviors.items():
+        for name, values in behaviors.items():
             entry = self.catalog[name]
             total += entry["base_cost"]
 

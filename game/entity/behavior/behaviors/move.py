@@ -34,5 +34,8 @@ class Move(Behavior):
     def apply(self, entity, values):
         entity.props["max_speed"] = max(entity.props.get("max_speed", 0.0), values["speed"])
 
+    def remove(self, entity):
+        entity.props.pop("max_speed", None)
+
     def register(self, runner):
         self.add_task(runner, "move", lambda entity, action, context: MoveTask(x=float(action.data["x"]), y=float(action.data["y"])))

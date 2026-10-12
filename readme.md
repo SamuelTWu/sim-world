@@ -505,8 +505,6 @@ Development should proceed in phases. Each phase must work before the next begin
 
 ### **TODO**
 
-- REMOVE Transfer! Only spawn and pick up/drop.
-
 - click to view attributes. click to view inventory
 
 - you can edit a pixel's attributes IF its in player territory

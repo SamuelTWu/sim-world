@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 import hashlib
 
 from ..tile.tile import Tile
+from .deltas import DeltaLog
 
 
 @dataclass
@@ -32,6 +33,8 @@ class World:
     recording: bool = field(default=False, init=False)
     changes: dict[tuple[int, int], str] = field(default_factory=dict, init=False, repr=False)
     dirty: set[tuple[int, int]] = field(default_factory=set, init=False, repr=False)
+    # The same changes as an ordered log grouped by chunk (see deltas.py).
+    deltas: DeltaLog = field(default_factory=DeltaLog, init=False, repr=False)
 
     # Checksum of the generated terrain, before any changes. Set by finish_generation().
     generation_checksum: str | None = field(default=None, init=False)
@@ -73,6 +76,7 @@ class World:
         if self.recording and current.name != tile.name:
             self.changes[(x, y)] = tile.name
             self.dirty.add((x, y))
+            self.deltas.record(x, y, tile.name)
 
         return True
 

@@ -90,12 +90,12 @@ Goal: players control pixels through the server.
 - [X] 5.5 Add click-drop and drag-select recall (from the main TODO list) as commands.
 - [X] 5.6a Add `save_blueprint` (check currency + tech unlocks).
 - [X] 5.6b add `edit_property: click pixel to view/change attributes and inventory
-- [ ] 5.7 Client sends a command, shows an optimistic hint if needed, and corrects when the server state arrives.
+- [X] 5.7 Client sends a command, shows an optimistic hint if needed, and corrects when the server state arrives.
 
 ## Phase 6: World Deltas
 Goal: tile changes sync without resending the world.
 
-- [ ] 6.1 Pick a chunk size (e.g. 16x16 tiles). Use the SAME size for deltas and the interest grid.
+- [X] 6.1 Pick a chunk size (e.g. 16x16 tiles). Use the SAME size for deltas and the interest grid.
 - [ ] 6.2 deltas.py: `set_tile` appends `(x, y, tile)` to the log for that chunk.
 - [ ] 6.3 On join, send deltas for chunks near the player. As the player moves, send deltas for newly nearby chunks.
 - [ ] 6.4 Broadcast new deltas only to clients that can see that chunk.
@@ -169,3 +169,9 @@ Pick one route when you get here:
 - How long should the server keep simulating when no players are near an area?
 - What does the client show before the server confirms a command?
 - Win conditions and match structure (affects persistence and when worlds reset).
+
+todo:
+- Carried pixels: they don’t yet follow their carrier or sit idle.
+- Roam and move speed: roam and move still both set max_speed.
+- Attack targets: the scan checks every pixel (Phase 9).
+- Hint matching: the placing ghost is matched to a new pixel by arrival order, so revisit it with Phase 7 visibility.

@@ -27,6 +27,8 @@ from game.command import command as commands
 from game.simulation import TICK_DT, TICK_RATE
 from . import protocol as proto
 from . import replication
+from .chunksync import ChunkSync, batches, wanted_chunks
+from game.entity.system.simContext import TILE_UNITS
 
 READY_MARKER = "[server] ready"
 DEFAULT_HOST = "127.0.0.1"
@@ -55,6 +57,7 @@ class Client:
     closing: bool = False
     outbox: asyncio.Queue = field(default_factory=asyncio.Queue)
     known: dict = field(default_factory=dict)
+    chunks: ChunkSync = field(default_factory=ChunkSync)
 
 
 def clean_name(name):
@@ -141,10 +144,27 @@ class Server:
             if client.closing:
                 continue
 
+            self.send_terrain(client)
             enter, update, leave = replication.diff(client.known, self.sim.owned_ids(client.player_id), self.commands.get_entity)
 
             if enter or update or leave:
                 self.send(client, proto.tick_update(self.sim.tick, enter, update, leave))
+
+    def send_terrain(self, client):
+        """Send tile changes the player has not got: whole logs of chunks that just became near one of their pixels, and new changes in chunks they already have (see chunksync.py)."""
+        world = self.sim.world
+        points = []
+
+        for entity_id in self.sim.owned_ids(client.player_id):
+            entity = self.commands.get_entity(entity_id)
+
+            if entity is not None and entity.alive:
+                points.append((entity.position.x, entity.position.y))
+
+        wanted = wanted_chunks(points, TILE_UNITS, world.width, world.height)
+
+        for tiles in batches(client.chunks.update(wanted, world.deltas)):
+            self.send(client, proto.world_delta(self.sim.tick, [list(tile) for tile in tiles]))
 
     def handle(self, client, message):
         if message is None:

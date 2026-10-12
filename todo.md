@@ -96,9 +96,9 @@ Goal: players control pixels through the server.
 Goal: tile changes sync without resending the world.
 
 - [X] 6.1 Pick a chunk size (e.g. 16x16 tiles). Use the SAME size for deltas and the interest grid.
-- [ ] 6.2 deltas.py: `set_tile` appends `(x, y, tile)` to the log for that chunk.
-- [ ] 6.3 On join, send deltas for chunks near the player. As the player moves, send deltas for newly nearby chunks.
-- [ ] 6.4 Broadcast new deltas only to clients that can see that chunk.
+- [X] 6.2 deltas.py: `set_tile` appends `(x, y, tile)` to the log for that chunk.
+- [X] 6.3 On join, send deltas for chunks near the player. As the player moves, send deltas for newly nearby chunks.
+- [X] 6.4 Broadcast new deltas only to clients that can see that chunk.
 - [ ] 6.5 Client applies deltas on top of its locally generated world.
 - [ ] 6.6 Compaction: if a tile is changed repeatedly, keep only the latest value per tile.
 - [ ] 6.7 Test: player A mines/changes a tile, player B (nearby) sees it. Player C (far away) gets it only when moving close.

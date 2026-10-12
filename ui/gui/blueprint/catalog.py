@@ -14,7 +14,7 @@ def behavior_catalog():
 
     if _catalog is None:
         try:
-            from ....game.entity.behavior.behaviorManager import BehaviorManager
+            from game.entity.behavior.behaviorManager import BehaviorManager
 
             _catalog = BehaviorManager().to_dict()["behaviors"]
         except Exception as problem:  # the editor still opens; it just has nothing to add

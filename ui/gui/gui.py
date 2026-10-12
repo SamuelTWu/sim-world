@@ -19,6 +19,7 @@ MAX_SCALE = 2.0
 DRAG_START = 8
 NOTICE_SECONDS = 4.0
 SAVE_WAIT = 5.0
+SAVE_GRACE = 1.5
 
 WINDOWS = {"tech": TechWindow}
 
@@ -200,6 +201,12 @@ class Gui:
             editor.saving = False
             editor.say(reason or "The server did not apply it")
 
+    def save_acknowledged(self):
+        """The server accepted the save. The new file should show up in a moment (single player); if it never does, the server saved it somewhere this client cannot see."""
+        if self.saving is not None:
+            self.saving["acked"] = True
+            self.saving["until"] = time.monotonic() + SAVE_GRACE
+
     def update(self):
         """Once a frame: collects what the editor asks for, and notices a saved blueprint's file appearing."""
         editor = self.sidebar.editor
@@ -232,7 +239,13 @@ class Gui:
             self.select_blueprint(saved["id"])
             self.notify(f"Saved '{saved['name']}'. Drag its card onto the map to place it.", good=True)
         elif time.monotonic() > saved["until"]:
-            self.save_failed("No sign of the new file yet. If the server saved it, reopen the tray.")
+            if saved.get("acked"):
+                self.saving = None
+                self.sidebar.close()
+                self.bar.selected = None
+                self.notify(f"Saved '{saved['name']}' on the server. This computer does not have the file yet, so it is not in the tray.", good=True)
+            else:
+                self.save_failed("No answer from the server yet. If it saved, reopen the tray.")
 
     def close_sidebar(self):
         self.bar.selected = None

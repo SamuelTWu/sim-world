@@ -10,12 +10,12 @@ Rules:
 - Bump PROTOCOL_VERSION whenever a message changes shape.
 
 Client -> server: join, command
-Server -> client: welcome, tick_update, world_delta, entity_info, error
+Server -> client: welcome, tick_update, world_delta, entity_info, command_result, order_failed, error
 """
 import msgpack
 from msgpack.exceptions import UnpackException
 
-PROTOCOL_VERSION = 2
+PROTOCOL_VERSION = 3
 MAX_MESSAGE_BYTES = 1_000_000
 
 JOIN = "join"
@@ -24,6 +24,8 @@ COMMAND = "command"
 TICK_UPDATE = "tick_update"
 WORLD_DELTA = "world_delta"
 ENTITY_INFO = "entity_info"
+COMMAND_RESULT = "command_result"
+ORDER_FAILED = "order_failed"
 ERROR = "error"
 
 BAD_MESSAGE = "bad_message"
@@ -33,7 +35,7 @@ SERVER_FULL = "server_full"
 COMMAND_REJECTED = "command_rejected"
 
 CLIENT_TYPES = frozenset({JOIN, COMMAND})
-SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ENTITY_INFO, ERROR})
+SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ENTITY_INFO, COMMAND_RESULT, ORDER_FAILED, ERROR})
 
 # type -> (required fields, optional fields), each as {field: python type}
 SCHEMAS = {
@@ -43,6 +45,8 @@ SCHEMAS = {
     TICK_UPDATE: ({"tick": int}, {"enter": list, "update": list, "leave": list, "events": list, "ack": int}),
     WORLD_DELTA: ({"tick": int, "tiles": list}, {}),
     ENTITY_INFO: ({"id": int, "info": dict}, {"seq": int}),
+    COMMAND_RESULT: ({"seq": int}, {"applied": list, "ignored": list}),
+    ORDER_FAILED: ({"id": int, "kind": str, "reason": str}, {}),
     ERROR: ({"code": str, "message": str}, {"seq": int}),
 }
 
@@ -88,6 +92,25 @@ def entity_info(entity_id, info, seq=None):
         result["seq"] = seq
 
     return result
+
+
+def command_result(seq, applied=None, ignored=None):
+    """The command with this seq was accepted. `applied` lists what it acted on (pixel ids, or a new blueprint id);
+    `ignored` is [[pixel id, reason], ...] for pixels it skipped. A refused command gets an `error` with the same seq instead."""
+    message = {"type": COMMAND_RESULT, "seq": seq}
+
+    if applied:
+        message["applied"] = list(applied)
+
+    if ignored:
+        message["ignored"] = [list(pair) for pair in ignored]
+
+    return message
+
+
+def order_failed(entity_id, kind, reason):
+    """A pixel the player ordered gave up (or the order could not start) after the command was accepted."""
+    return {"type": ORDER_FAILED, "id": entity_id, "kind": kind, "reason": reason}
 
 
 def error(code, message, seq=None):

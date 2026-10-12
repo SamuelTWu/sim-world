@@ -61,6 +61,10 @@ def clean_name(name):
     return "".join(char for char in name if char.isprintable()).strip()[:MAX_NAME_LENGTH]
 
 
+MAX_RESULT_ITEMS = 256
+MAX_NOTICES_PER_TICK = 32
+
+
 class Server:
     def __init__(self, sim, host=DEFAULT_HOST, port=DEFAULT_PORT, max_players=MAX_PLAYERS):
         self.sim = sim
@@ -90,6 +94,7 @@ class Server:
             started = time.monotonic()
             self.process_inbox()
             self.sim.step()
+            self.send_order_notices()
             self.replicate()
             elapsed = time.monotonic() - started
 
@@ -114,6 +119,21 @@ class Server:
         while not self.inbox.empty():
             client, message = self.inbox.get_nowait()
             self.handle(client, message)
+
+    def send_order_notices(self):
+        """Tell the player whose order a pixel gave up on (orders.py queues these). The command was accepted earlier; this is the later bad news."""
+        notices = getattr(self.sim.systems, "order_notices", None)
+
+        if not notices:
+            return
+
+        pending, notices[:] = list(notices), []
+
+        for notice in pending[:MAX_NOTICES_PER_TICK]:
+            client = self.players.get(notice["issuer"])
+
+            if client is not None and not client.closing:
+                self.send(client, proto.order_failed(notice["id"], notice["kind"], notice["reason"]))
 
     def replicate(self):
         """Tell each player what changed about the pixels they can see (see replication.py). Silent when nothing changed."""
@@ -165,6 +185,9 @@ class Server:
             self.send(client, proto.error(proto.COMMAND_REJECTED, outcome.reason, seq=message["seq"]))
         elif outcome.info is not None:
             self.send(client, proto.entity_info(outcome.info["id"], outcome.info, seq=message["seq"]))
+        else:
+            ignored = [[entity_id, reason] for entity_id, reason in list(outcome.ignored.items())[:MAX_RESULT_ITEMS]]
+            self.send(client, proto.command_result(message["seq"], outcome.applied[:MAX_RESULT_ITEMS], ignored))
 
     def disconnect(self, client):
         client.closing = True

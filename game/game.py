@@ -67,6 +67,7 @@ class Game:
         self.renderer.gui.reset()
         self.renderer.place_requests.clear()
         self.renderer.selection.reset()
+        self.renderer.hints.clear()
         self.sent.clear()
         if self.client is not None:
             self.client.close()
@@ -83,6 +84,7 @@ class Game:
                 self.renderer.gui.notify("Could not send: the connection is not usable")
             else:
                 self.sent[seq] = "place"
+                self.renderer.hints.add(seq, "place", (x, y), key=blueprint_id)
 
     def send_inspects(self):
         for pixel_id in self.renderer.take_inspect_requests():
@@ -117,6 +119,19 @@ class Game:
                 self.renderer.gui.notify("Could not send: the connection is not usable")
             else:
                 self.sent[seq] = args.get("action", "order")
+                self.renderer.hints.add(seq, "order", args["point"], label=args.get("action") or "order")
+
+    def command_accepted(self, message):
+        """The server accepted a command: confirm the hint, say what was skipped, and finish a blueprint save."""
+        what = self.sent.pop(message["seq"], None)
+        self.renderer.hints.result(message["seq"], True)
+        skipped = message.get("ignored", [])
+
+        if what == "save_blueprint":
+            self.renderer.gui.save_acknowledged()
+        elif skipped:
+            reasons = sorted({reason for _, reason in skipped})
+            self.renderer.gui.notify(f"{len(message.get('applied', []))} ordered, {len(skipped)} skipped: {', '.join(reasons)}")
 
     def show_errors(self, messages):
         for message in messages:
@@ -125,8 +140,17 @@ class Game:
                 self.renderer.gui.show_pixel(message["info"])
                 continue
 
+            if message["type"] == proto.COMMAND_RESULT:
+                self.command_accepted(message)
+                continue
+
+            if message["type"] == proto.ORDER_FAILED:
+                self.renderer.gui.notify(f"Pixel #{message['id']} could not {message['kind']}: {message['reason']}")
+                continue
+
             if message["type"] == proto.ERROR:
                 what = self.sent.pop(message.get("seq"), None)
+                self.renderer.hints.result(message.get("seq"), False)
 
                 if what == "save_blueprint":
                     self.renderer.gui.save_failed(message["message"])

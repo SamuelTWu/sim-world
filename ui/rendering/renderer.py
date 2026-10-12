@@ -5,6 +5,7 @@ import pygame
 from .camera import Camera
 from .world_renderer import WorldRenderer
 from .entity_renderer import EntityRenderer
+from .hints import Hints
 from .selection import Selection
 from .sprites import get_sprite, load_sprites
 from ..gui.gui import Gui
@@ -47,6 +48,7 @@ class Renderer:
         self.gui.on_blueprints_changed = lambda: load_sprites(ENTITY_FOLDER)
         self.gui.sprite_color = lambda sprite_id: get_sprite(sprite_id).color
         self.selection = Selection(self.gui)
+        self.hints = Hints()
         load_sprites(ENTITY_FOLDER)
 
         self.debug_map_index = -1
@@ -181,6 +183,7 @@ class Renderer:
         world, maps, features, entities = view.world, view.maps, view.features, view.entities
         self.view_entities, self.player_id = list(entities or ()), getattr(view, "player_id", None)
         self.selection.prune(self.view_entities, self.player_id)
+        self.hints.update(self.view_entities)
 
         if world is not None:
             world_size = (world.width, world.height)
@@ -207,6 +210,7 @@ class Renderer:
             self.entity_renderer.render_entities(entities)
 
         self.selection.draw_world(self.screen, self.view_entities, self.camera)
+        self.hints.draw(self.screen, self.camera, self.gui)
         self.gui.draw(self.screen)
         self.selection.draw_menu(self.screen)
         pygame.display.flip()

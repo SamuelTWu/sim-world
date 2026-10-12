@@ -11,12 +11,23 @@ SystemRunner calls follow_orders() at the top of think() and order_finished() wh
 import traceback
 
 from .decisionSystem import Action, Decision
+from .task import FAILED
 
 ORDER_KEY = "order"
 ORDER_SCORE = float("inf")
 BOOKKEEPING = ("kind", "tick", "issuer", "started")
 ORDER_FINISHED = "order_finished"
 ORDER_DROPPED = "order_dropped"
+MAX_NOTICES = 256
+
+# what the player is told when an accepted order ends in failure (the task only says FAILED, not why)
+FAILURE_REASONS = {
+    "move": "it could not get there",
+    "attack": "it could not reach the target, or the target is gone",
+    "spawn": "it could not create that",
+    "pickup": "it could not pick that up (too far, no room, or taken)",
+    "drop": "it had nothing to put down there",
+}
 
 
 def action_of(order):
@@ -54,9 +65,18 @@ def follow_orders(runner, entity):
     return True
 
 
+def notify(runner, entity, order, reason):
+    """Queue a message for the player who gave the order: runner.order_notices, which the server sends and empties every tick."""
+    notices = getattr(runner, "order_notices", None)
+
+    if notices is not None and order.get("issuer") is not None and len(notices) < MAX_NOTICES:
+        notices.append({"issuer": order["issuer"], "id": entity.id, "kind": str(order.get("kind")), "reason": reason})
+
+
 def drop(runner, entity, order, reason):
     entity.components.pop(ORDER_KEY, None)
     runner.events.emit(ORDER_DROPPED, entity=entity, order=order, reason=reason)
+    notify(runner, entity, order, "it cannot do that" if reason == "no such action" else "it could not start")
 
 
 def order_finished(runner, entity, task, status):
@@ -66,3 +86,6 @@ def order_finished(runner, entity, task, status):
     if order is not None and order.get("started") and entity.task_score == ORDER_SCORE:
         entity.components.pop(ORDER_KEY, None)
         runner.events.emit(ORDER_FINISHED, entity=entity, order=order, status=status)
+
+        if status == FAILED:
+            notify(runner, entity, order, FAILURE_REASONS.get(order.get("kind"), "it gave up"))

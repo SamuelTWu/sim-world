@@ -27,6 +27,9 @@ samples = [
     (p.tick_update(6), p.SERVER_TYPES),
     (p.world_delta(5, [[10, 10, "stone"], [11, 10, "stone"]]), p.SERVER_TYPES),
     (p.entity_info(7, {"id": 7, "stats": {"health": 1.0}}, seq=3), p.SERVER_TYPES),
+    (p.command_result(4, [1, 2], [[3, "unavailable"]]), p.SERVER_TYPES),
+    (p.command_result(5), p.SERVER_TYPES),
+    (p.order_failed(1, "move", "it could not get there"), p.SERVER_TYPES),
     (p.error(p.COMMAND_REJECTED, "not enough currency", seq=1), p.SERVER_TYPES),
 ]
 

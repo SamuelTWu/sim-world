@@ -31,6 +31,7 @@ class SystemRunner:
         self.relationship_system = RelationshipSystem()
         self.decision_system = DecisionSystem()
         self.events = EventBus()
+        self.order_notices = []  # orders that failed, for the server to tell the player (see orders.notify)
         self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng)
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}

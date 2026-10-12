@@ -75,7 +75,7 @@ Goal: one code path for everything.
 - [X] write code to have tech tree button, tech tree window, auto generate tech tree based off files. 
 - [X] make GUI that holds tech tree button, resource button, structure button, pixel blueprint button, as well as a panel for things like score, # of pixels, etc. 
 - [X] make the blueprint button. when clicked, the bottom bar will expand to show you your blueprints, as well as expand a sidebar to show blueprint attributes
-- [] Add pixel drag and drop functionality. 
+- [X] Add pixel drag and drop functionality. 
 
 ## Phase 5: Commands
 Goal: players control pixels through the server.

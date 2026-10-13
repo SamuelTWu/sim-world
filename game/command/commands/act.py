@@ -16,6 +16,7 @@ args: {"ids": [...] or "box": [x0, y0, x1, y1], "point": [x, y], "action": name 
 means visible and not yours; for pickup the pixel must be yours. Add an action with @click_action("name", extras=(...)): a function
 (ctx, player_id, ids, point, args) -> (command name, that command's args without ids). Unknown extras for an action are refused.
 """
+from ..visibility import can_see
 from ..command import COMMANDS, Command, Rejected, as_ids, as_point, command, pick_entity
 
 CLICK_ACTIONS = {}
@@ -30,7 +31,7 @@ def click_action(name, extras=()):
 
 
 def hostile_under(ctx, player_id, ids, x, y):
-    return pick_entity(ctx, x, y, lambda pixel: pixel.visible and pixel.id not in ids and pixel.owner != player_id)
+    return pick_entity(ctx, x, y, lambda pixel: can_see(player_id, pixel) and pixel.id not in ids and pixel.owner != player_id)
 
 
 def own_under(ctx, player_id, ids, x, y):

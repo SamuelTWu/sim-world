@@ -108,8 +108,8 @@ Goal: clients only receive pixels near their own pixels.
 
 - [X] 7.1 interest.py: spatial hash grid of pixels (cell size = chunk size or smaller). Update it when pixels move.
 - [X] 7.2 Per client per tick, compute the set of visible pixel ids: pixels in cells near the client's own pixels + camera view.
-- [ ] 7.3 Diff against what the client already knows: send `enter` (full state) for new, `update` (changed fields only) for existing, `leave` for gone.
-- [ ] 7.4 Hysteresis: leave radius slightly larger than enter radius so pixels don't flicker at the edge.
+- [X] 7.3 Diff against what the client already knows: send `enter` (full state) for new, `update` (changed fields only) for existing, `leave` for gone.
+- [X] 7.4 Hysteresis: leave radius slightly larger than enter radius so pixels don't flicker at the edge.
 - [ ] 7.5 Visibility rules: invisible pixels and spies are not sent to enemies. Do the check here on the server.
 - [ ] 7.6 Client keeps a dict of known pixels, adds on enter, patches on update, removes on leave.
 - [ ] 7.7 Test: pixel walks in and out of range, with no flicker and no leaked invisible pixels.

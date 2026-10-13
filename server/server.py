@@ -27,6 +27,7 @@ from game.command import command as commands
 from game.simulation import TICK_DT, TICK_RATE
 from . import protocol as proto
 from . import replication
+from game.command.visibility import can_see
 from .interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visible_ids
 from .chunksync import ChunkSync, batches, wanted_chunks
 from game.entity.system.simContext import TILE_UNITS
@@ -61,6 +62,7 @@ class Client:
     chunks: ChunkSync = field(default_factory=ChunkSync)
     view: tuple | None = None
     visible: set = field(default_factory=set)
+    keep: set = field(default_factory=set)
 
 
 def clean_name(name):
@@ -69,6 +71,7 @@ def clean_name(name):
 
 MAX_RESULT_ITEMS = 256
 VIEW_MARGIN_TILES = 2
+LEAVE_EXTRA_TILES = 2  # a pixel enters at the edge of the visible area but only leaves this much further out (7.4)
 MAX_NOTICES_PER_TICK = 32
 
 
@@ -151,7 +154,7 @@ class Server:
                 continue
 
             self.send_terrain(client)
-            enter, update, leave = replication.diff(client.known, self.compute_visible(client), self.commands.get_entity)
+            enter, update, leave = replication.diff(client.known, self.compute_visible(client), self.seen_by(client), client.keep)
 
             if enter or update or leave:
                 self.send(client, proto.tick_update(self.sim.tick, enter, update, leave))
@@ -216,8 +219,23 @@ class Server:
         else:
             client.view = rect
 
+    def seen_by(self, client):
+        """A lookup for replication.diff that returns only pixels this player may be told about (command/visibility.py).
+
+        Everything sent about pixels goes through it, so invisible pixels and spies are never in `enter` or `update` for an enemy,
+        and one that turns invisible mid-game simply `leave`s.
+        """
+        player_id = client.player_id
+        get_entity = self.commands.get_entity
+
+        def lookup(entity_id):
+            entity = get_entity(entity_id)
+            return entity if entity is not None and can_see(player_id, entity) else None
+
+        return lookup
+
     def compute_visible(self, client):
-        """The ids of the pixels this player may be told about this tick: near their own pixels or in their camera view (interest.py)."""
+        """Fills client.visible (pixels near their own pixels or in their camera: what may ENTER) and client.keep (the same area a little bigger: what stays), see interest.py. Returns visible."""
         own = []
 
         for entity_id in self.sim.owned_ids(client.player_id):
@@ -226,7 +244,9 @@ class Server:
             if entity is not None and entity.alive:
                 own.append((entity_id, entity.position.x, entity.position.y))
 
-        client.visible = visible_ids(self.grid, own, client.view, margin=VIEW_MARGIN_TILES * TILE_UNITS)
+        margin = VIEW_MARGIN_TILES * TILE_UNITS
+        client.visible = visible_ids(self.grid, own, client.view, margin=margin)
+        client.keep = visible_ids(self.grid, own, client.view, margin=margin, extra=LEAVE_EXTRA_TILES * TILE_UNITS)
         return client.visible
 
     def handle_command(self, client, message):

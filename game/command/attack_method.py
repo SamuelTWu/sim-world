@@ -19,7 +19,7 @@ the order is carried out, so a pixel that gains or changes its attack later just
 
 The `attack` behavior (entity/behavior/behaviors/attack.py) calls `attack_step()` once per tick, whether the pixel chose to
 attack or was ordered to. It returns what happened so the behavior knows what to do next:
-    "gone"      the target is dead, invisible or missing: drop the order
+    "gone"      the target is dead, missing, or hidden from the attacker's owner (invisible, spy): drop the order
     "approach"  not in reach yet: move toward the target (or stand still, for a ranged pixel that wants line of sight)
     "waiting"   in reach, but the pixel is still recovering from its last attack
     "hit"       the attack happened
@@ -28,6 +28,7 @@ import importlib
 import math
 
 from ..entity.system.simContext import TILE_UNITS
+from .visibility import can_see
 
 DEFAULT_METHOD = "collision"
 TRAIT = "attack"
@@ -107,7 +108,7 @@ def attack_step(ctx, attacker, target):
     """One tick of an attack order. Returns "gone", "approach", "waiting" or "hit" (see the top of this file)."""
     resolved = resolve(attacker)
 
-    if target is None or not target.alive or not target.visible or resolved is None:
+    if target is None or not can_see(attacker.owner, target) or resolved is None:
         return "gone"
 
     method, params = resolved

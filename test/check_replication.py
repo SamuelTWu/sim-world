@@ -86,4 +86,38 @@ for step in range(60):
     ok(set(mirror) == shown, "the client's pixels are exactly the visible, living ones")
     ok(all((mirror[i].position.x, mirror[i].position.y) == replication.position(pixels[i]) and mirror[i].owner == pixels[i].owner for i in mirror), "and their positions and owners are current")
 
+# 7.4 hysteresis: a pixel walking back and forth over the edge does not flicker
+EXTRA = 2 * TILE
+pixels.clear()
+pixels[1] = pixel(1, 5 * 512 + 100, 5 * 512 + 100, owner=1)           # own pixel in cell (5, 5): enter area is cells 4..6
+edge = 7 * 512                                                          # the enter area ends here (x)
+pixels[9] = pixel(9, edge - 20, 5 * 512 + 100, owner=2)
+known.clear(); mirror.clear(); grid.cells.clear(); grid.where.clear()
+
+
+def tick2():
+    grid.sync(pixels.values())
+    own = [(1, pixels[1].position.x, pixels[1].position.y)]
+    enter, update, leave = replication.diff(known, visible_ids(grid, own), lookup, visible_ids(grid, own, extra=EXTRA))
+    apply_tick_update(mirror, {"enter": enter, "update": update, "leave": leave})
+    return enter, update, leave
+
+
+ok([e["id"] for e in tick2()[0]] == [1, 9], "just inside the enter area: it enters")
+events = 0
+
+for x in (edge + 10, edge - 5, edge + 30, edge - 1, edge + EXTRA - 5, edge + 1):
+    pixels[9].position.x = x
+    enter, update, leave = tick2()
+    events += len(enter) + len(leave)
+    ok(9 in mirror, f"x={x - edge:+d} from the edge: still there (no flicker)")
+
+ok(events == 0, "no enter or leave while it jitters across the edge")
+pixels[9].position.x = edge + EXTRA + 40
+ok(tick2()[2] == [9], "beyond the leave area it leaves")
+pixels[9].position.x = edge + 10
+ok(tick2()[0] == [] and 9 not in mirror, "just outside the enter area it does not come straight back")
+pixels[9].position.x = edge - 20
+ok([e["id"] for e in tick2()[0]] == [9], "only once it is inside the enter area again")
+
 print(f"all {checks} checks passed")

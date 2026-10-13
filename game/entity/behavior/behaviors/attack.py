@@ -1,6 +1,7 @@
 import math
 
 from ..behavior import Behavior, Param
+from ....command.visibility import can_see
 from ....command.attack_method import ATTACK_METHODS, DEFAULT_METHOD, attack_step, load_attack_methods, resolve
 from ...system.considerations import Consideration, ramp
 from ...system.decisionSystem import Action
@@ -21,8 +22,8 @@ class OptionalParam(Param):
 
 
 def hostile(entity, other):
-    """Who a pixel may pick to attack by itself: living, visible pixels of somebody else (neutral pixels count)."""
-    if other is entity or not other.alive or not other.visible:
+    """Who a pixel may pick to attack by itself: living pixels of somebody else (neutral pixels count) that its owner can see (not invisible, not spies)."""
+    if other is entity or not can_see(entity.owner, other):
         return False
 
     return entity.owner is None or other.owner != entity.owner

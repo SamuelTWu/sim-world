@@ -1,4 +1,5 @@
 from ..attack_method import load_attack_methods, method_name, resolve
+from ..visibility import can_see
 from ..command import Command, Outcome, Rejected, as_ids, clean_args, command, is_int, issue_order, select_pixels
 
 ATTACK_GATES = []
@@ -9,8 +10,8 @@ def gate_not_own(ctx, player_id, target):
 
 
 def gate_targetable(ctx, player_id, target):
-    """Dead and invisible pixels look the same as ones that do not exist, so ids cannot be probed."""
-    return None if target.alive and target.visible else "invalid target"
+    """Dead pixels, and pixels hidden from this player (invisible, or spies: visibility.py), look the same as ones that do not exist, so ids cannot be probed."""
+    return None if can_see(player_id, target) else "invalid target"
 
 
 ATTACK_GATES.extend([gate_targetable, gate_not_own])
@@ -30,8 +31,8 @@ class Attack(Command):
     whose attack method does not exist is skipped.
 
     ATTACK_GATES are checks on the target: functions (ctx, player_id, target) that return a reason to refuse, or None.
-    They run once per command. Add range and "can this player see the target" rules there (Phase 7.5): right now
-    any pixel that is alive and visible can be named, whoever owns it and wherever it is.
+    They run once per command. "Can this player see the target" is enforced there (visibility.py: invisible pixels and
+    spies are hidden from enemies); range is not checked yet, so any pixel the player may see can be named, wherever it is.
     """
 
     name = "attack"

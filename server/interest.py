@@ -176,13 +176,16 @@ def clean_view(rect, width, height, max_size):
     return x0, y0, x1, y1
 
 
-def visible_ids(grid, own_pixels, view=None, cells_around=INTEREST_CELLS, margin=0.0):
+def visible_ids(grid, own_pixels, view=None, cells_around=INTEREST_CELLS, margin=0.0, extra=0.0):
     """The ids of every pixel a client may be told about this tick (README 7.2), as a set.
 
     own_pixels: [(id, x, y), ...] the client's own pixels. They are always visible, and so is everything in the
     cells within `cells_around` of any of them. `view` is the camera rectangle from clean_view (or None); pixels
-    inside it, widened by `margin` world units, are visible too. Visibility rules (invisible pixels, spies) and
-    leave hysteresis are applied afterwards, in 7.4 and 7.5.
+    inside it, widened by `margin` world units, are visible too.
+
+    `extra` (world units, default 0) widens every one of those areas on all sides. A client is sent a pixel when it is in
+    the set with extra=0 (the ENTER set) and keeps it until it leaves the set with extra>0 (the LEAVE set), so a pixel
+    standing on the edge does not flicker in and out (7.4). Visibility rules (invisible pixels, spies) come in 7.5.
     """
     visible = set()
     cells = set()
@@ -194,8 +197,14 @@ def visible_ids(grid, own_pixels, view=None, cells_around=INTEREST_CELLS, margin
 
     visible.update(grid.in_cells(cells))
 
+    if extra > 0:
+        size = grid.cell_size
+
+        for cx, cy in {grid.cell_of(x, y) for _, x, y in own_pixels}:
+            visible.update(grid.in_rect((cx - cells_around) * size - extra, (cy - cells_around) * size - extra, (cx + cells_around + 1) * size + extra, (cy + cells_around + 1) * size + extra))
+
     if view is not None:
         x0, y0, x1, y1 = view
-        visible.update(grid.in_rect(x0 - margin, y0 - margin, x1 + margin, y1 + margin))
+        visible.update(grid.in_rect(x0 - margin - extra, y0 - margin - extra, x1 + margin + extra, y1 + margin + extra))
 
     return visible

@@ -34,37 +34,76 @@ class View:
     player_id: int | None = None
 
 
+class Stats(dict):
+    """Counts of what apply_tick_update did, for tests and debugging: entered, updated, left, skipped (malformed entries), unknown (an
+    update or leave for a pixel the client does not have, which means it missed an enter: the server does not repeat itself)."""
+
+    def __init__(self):
+        super().__init__(entered=0, updated=0, left=0, skipped=0, unknown=0)
+
+    def add(self, other):
+        for key, value in other.items():
+            self[key] += value
+
+
+def is_id(value):
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def is_number(value):
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and value == value and abs(value) != float("inf")
+
+
 def apply_tick_update(entities, message):
-    """Apply a tick_update's enter / update / leave to a dict of id -> ReplicatedEntity. Bad entries are skipped."""
+    """Apply a tick_update to the client's dict of known pixels (id -> ReplicatedEntity), in the order enter, update, leave.
+
+    enter adds a pixel with its full state (or replaces one the client already had), update patches only the fields it carries,
+    leave removes. Malformed entries are skipped and never half-applied. Returns a Stats with what happened.
+    """
+    stats = Stats()
+
     for state in message.get("enter", ()):
         try:
-            entities[state["id"]] = ReplicatedEntity(state["id"], state.get("sprite_id", "pixel"), state.get("owner"), state.get("name") or "", Position(float(state["x"]), float(state["y"])))
-        except (KeyError, TypeError, ValueError):
-            continue
+            entity_id, x, y = state["id"], state["x"], state["y"]
+            sprite_id, owner, name = state.get("sprite_id", "pixel"), state.get("owner"), state.get("name") or ""
+
+            if not (is_id(entity_id) and is_number(x) and is_number(y) and isinstance(sprite_id, str) and (owner is None or is_id(owner)) and isinstance(name, str)):
+                raise ValueError("bad enter")
+
+            entities[entity_id] = ReplicatedEntity(entity_id, sprite_id, owner, name, Position(float(x), float(y)))
+            stats["entered"] += 1
+        except (KeyError, TypeError, ValueError, AttributeError):
+            stats["skipped"] += 1
 
     for state in message.get("update", ()):
         try:
             entity = entities.get(state["id"])
 
             if entity is None:
+                stats["unknown"] += 1
                 continue
 
-            if "x" in state or "y" in state:
-                entity.position = Position(float(state.get("x", entity.position.x)), float(state.get("y", entity.position.y)))
+            x, y = state.get("x", entity.position.x), state.get("y", entity.position.y)
+            sprite_id, owner, name = state.get("sprite_id", entity.sprite_id), state.get("owner", entity.owner), state.get("name", entity.name)
 
-            if "sprite_id" in state:
-                entity.sprite_id = state["sprite_id"]
+            if not (is_number(x) and is_number(y) and isinstance(sprite_id, str) and (owner is None or is_id(owner)) and isinstance(name, str)):
+                raise ValueError("bad update")
 
-            if "owner" in state:
-                entity.owner = state["owner"]
-
-            if "name" in state:
-                entity.name = state["name"]
-        except (KeyError, TypeError, ValueError):
-            continue
+            entity.position, entity.sprite_id, entity.owner, entity.name = Position(float(x), float(y)), sprite_id, owner, name
+            stats["updated"] += 1
+        except (KeyError, TypeError, ValueError, AttributeError):
+            stats["skipped"] += 1
 
     for entity_id in message.get("leave", ()):
-        entities.pop(entity_id, None)
+        try:
+            if entities.pop(entity_id, None) is None:
+                stats["unknown"] += 1
+            else:
+                stats["left"] += 1
+        except TypeError:
+            stats["skipped"] += 1
+
+    return stats
 
 
 def apply_world_delta(world, message, tiles_by_name):

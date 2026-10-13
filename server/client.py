@@ -31,7 +31,7 @@ from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidURI
 from websockets.sync.client import connect
 
 from . import protocol as proto
-from .replica import View, apply_tick_update, apply_world_delta
+from .replica import Stats, View, apply_tick_update, apply_world_delta
 
 DEFAULT_URL = "ws://127.0.0.1:8765"
 
@@ -58,7 +58,8 @@ class Client:
         self.welcome = None
         self.generator = None
         self.world = None
-        self.entities = {}
+        self.entities = {}  # the pixels this client knows, id -> ReplicatedEntity: added on enter, patched on update, removed on leave
+        self.pixel_stats = Stats()  # totals of what the server's tick_updates did to self.entities (unknown > 0 means a missed enter)
         self.inbox = queue.Queue()
         self.seq = 0
         self.ws = None
@@ -104,7 +105,7 @@ class Client:
                 return messages
 
             if message["type"] == proto.TICK_UPDATE:
-                apply_tick_update(self.entities, message)
+                self.pixel_stats.add(apply_tick_update(self.entities, message))
 
             elif message["type"] == proto.WORLD_DELTA:
                 self.apply_delta(message)

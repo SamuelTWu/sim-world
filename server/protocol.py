@@ -9,18 +9,19 @@ Rules:
 - Optional fields are left out when empty, so read them with .get(key, default).
 - Bump PROTOCOL_VERSION whenever a message changes shape.
 
-Client -> server: join, command
+Client -> server: join, command, view
 Server -> client: welcome, tick_update, world_delta, entity_info, command_result, order_failed, error
 """
 import msgpack
 from msgpack.exceptions import UnpackException
 
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 MAX_MESSAGE_BYTES = 1_000_000
 
 JOIN = "join"
 WELCOME = "welcome"
 COMMAND = "command"
+VIEW = "view"
 TICK_UPDATE = "tick_update"
 WORLD_DELTA = "world_delta"
 ENTITY_INFO = "entity_info"
@@ -34,7 +35,7 @@ NOT_JOINED = "not_joined"
 SERVER_FULL = "server_full"
 COMMAND_REJECTED = "command_rejected"
 
-CLIENT_TYPES = frozenset({JOIN, COMMAND})
+CLIENT_TYPES = frozenset({JOIN, COMMAND, VIEW})
 SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ENTITY_INFO, COMMAND_RESULT, ORDER_FAILED, ERROR})
 
 # type -> (required fields, optional fields), each as {field: python type}
@@ -42,6 +43,7 @@ SCHEMAS = {
     JOIN: ({"name": str, "protocol": int}, {}),
     WELCOME: ({"player_id": int, "seed": int, "settings": dict, "checksum": str, "tick": int, "tick_rate": int}, {}),
     COMMAND: ({"seq": int, "name": str, "args": dict}, {}),
+    VIEW: ({"rect": list}, {}),
     TICK_UPDATE: ({"tick": int}, {"enter": list, "update": list, "leave": list, "events": list, "ack": int}),
     WORLD_DELTA: ({"tick": int, "tiles": list}, {}),
     ENTITY_INFO: ({"id": int, "info": dict}, {"seq": int}),
@@ -65,6 +67,11 @@ def welcome(player_id, seed, settings, checksum, tick, tick_rate):
 
 def command(seq, name, args=None):
     return {"type": COMMAND, "seq": seq, "name": name, "args": args or {}}
+
+
+def view(rect):
+    """The part of the world the player's camera shows, [x0, y0, x1, y1] in world units. The server also sends pixels in it (interest.py)."""
+    return {"type": VIEW, "rect": list(rect)}
 
 
 def tick_update(tick, enter=None, update=None, leave=None, events=None, ack=None):

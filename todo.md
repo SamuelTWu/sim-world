@@ -101,13 +101,13 @@ Goal: tile changes sync without resending the world.
 - [X] 6.4 Broadcast new deltas only to clients that can see that chunk.
 - [X] 6.5 Client applies deltas on top of its locally generated world.
 - [X] 6.6 Compaction: if a tile is changed repeatedly, keep only the latest value per tile.
-- [ ] 6.7 Test: player A mines/changes a tile, player B (nearby) sees it. Player C (far away) gets it only when moving close.
+- [X] 6.7 Test: player A mines/changes a tile, player B (nearby) sees it. Player C (far away) gets it only when moving close.
 
 ## Phase 7: Interest Management
 Goal: clients only receive pixels near their own pixels.
 
-- [ ] 7.1 interest.py: spatial hash grid of pixels (cell size = chunk size or smaller). Update it when pixels move.
-- [ ] 7.2 Per client per tick, compute the set of visible pixel ids: pixels in cells near the client's own pixels + camera view.
+- [X] 7.1 interest.py: spatial hash grid of pixels (cell size = chunk size or smaller). Update it when pixels move.
+- [X] 7.2 Per client per tick, compute the set of visible pixel ids: pixels in cells near the client's own pixels + camera view.
 - [ ] 7.3 Diff against what the client already knows: send `enter` (full state) for new, `update` (changed fields only) for existing, `leave` for gone.
 - [ ] 7.4 Hysteresis: leave radius slightly larger than enter radius so pixels don't flicker at the edge.
 - [ ] 7.5 Visibility rules: invisible pixels and spies are not sent to enemies. Do the check here on the server.

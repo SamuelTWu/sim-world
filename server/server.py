@@ -27,6 +27,7 @@ from game.command import command as commands
 from game.simulation import TICK_DT, TICK_RATE
 from . import protocol as proto
 from . import replication
+from .interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visible_ids
 from .chunksync import ChunkSync, batches, wanted_chunks
 from game.entity.system.simContext import TILE_UNITS
 
@@ -58,6 +59,8 @@ class Client:
     outbox: asyncio.Queue = field(default_factory=asyncio.Queue)
     known: dict = field(default_factory=dict)
     chunks: ChunkSync = field(default_factory=ChunkSync)
+    view: tuple | None = None
+    visible: set = field(default_factory=set)
 
 
 def clean_name(name):
@@ -65,6 +68,7 @@ def clean_name(name):
 
 
 MAX_RESULT_ITEMS = 256
+VIEW_MARGIN_TILES = 2
 MAX_NOTICES_PER_TICK = 32
 
 
@@ -78,6 +82,7 @@ class Server:
         commands.load_commands()
         self.commands = commands.CommandContext(sim)
         self.players = {}
+        self.grid = SpatialGrid(TILE_UNITS)
         self.next_player_id = 1
         self.tasks = set()
 
@@ -97,6 +102,7 @@ class Server:
             started = time.monotonic()
             self.process_inbox()
             self.sim.step()
+            self.grid.sync(self.sim.entity_manager.all())
             self.send_order_notices()
             self.replicate()
             elapsed = time.monotonic() - started
@@ -145,6 +151,7 @@ class Server:
                 continue
 
             self.send_terrain(client)
+            self.compute_visible(client)
             enter, update, leave = replication.diff(client.known, self.sim.owned_ids(client.player_id), self.commands.get_entity)
 
             if enter or update or leave:
@@ -180,6 +187,8 @@ class Server:
             self.handle_join(client, message)
         elif client.player_id is None:
             self.reject(client, proto.NOT_JOINED, "send join first")
+        elif message["type"] == proto.VIEW:
+            self.handle_view(client, message)
         else:
             self.handle_command(client, message)
 
@@ -197,6 +206,29 @@ class Server:
             self.players[client.player_id] = client
             self.send(client, proto.welcome(client.player_id, self.sim.seed, asdict(self.sim.generation_settings), self.sim.world.generation_checksum, self.sim.tick, TICK_RATE))
             print(f"[server] player {client.player_id} '{client.name}' joined ({len(self.players)}/{self.max_players})")
+
+    def handle_view(self, client, message):
+        """Remember the part of the world the player's camera shows. A bad rectangle is ignored (the old one stays)."""
+        world = self.sim.world
+        rect = clean_view(message["rect"], world.width * TILE_UNITS, world.height * TILE_UNITS, MAX_VIEW_TILES * TILE_UNITS)
+
+        if rect is None:
+            self.send(client, proto.error(proto.BAD_MESSAGE, "view must be [x0, y0, x1, y1] numbers"))
+        else:
+            client.view = rect
+
+    def compute_visible(self, client):
+        """The ids of the pixels this player may be told about this tick: near their own pixels or in their camera view (interest.py)."""
+        own = []
+
+        for entity_id in self.sim.owned_ids(client.player_id):
+            entity = self.commands.get_entity(entity_id)
+
+            if entity is not None and entity.alive:
+                own.append((entity_id, entity.position.x, entity.position.y))
+
+        client.visible = visible_ids(self.grid, own, client.view, margin=VIEW_MARGIN_TILES * TILE_UNITS)
+        return client.visible
 
     def handle_command(self, client, message):
         outcome = commands.execute(self.commands, client.player_id, message["name"], message["args"])

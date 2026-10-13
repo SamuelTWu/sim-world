@@ -142,6 +142,10 @@ class Client:
 
         return True
 
+    def send_view(self, rect):
+        """Tell the server which part of the world the camera shows, [x0, y0, x1, y1] in world units. Returns False if not sent."""
+        return self.send(proto.view(rect))
+
     def command(self, name, args=None):
         """Send a command with the next sequence number. Returns the seq, or None if it was not sent."""
         self.seq += 1

@@ -1,4 +1,5 @@
 import textwrap
+import time
 
 import pygame
 
@@ -23,6 +24,8 @@ class Game:
         self.font = None
         self.small_font = None
         self.sent = {}
+        self.view_sent = None
+        self.view_time = 0.0
 
     def open_menu(self, notice=None, screen="main"):
         self.shutdown()
@@ -55,6 +58,7 @@ class Game:
         self.mode = JOIN
         self.url = url
         self.client = Client(url, name="player")
+        self.view_sent = None
         self.client.start()
 
     def start_new_game(self, seed=None):
@@ -75,6 +79,25 @@ class Game:
         if self.local_server is not None:
             self.local_server.stop()
             self.local_server = None
+
+    VIEW_INTERVAL = 0.2
+    VIEW_STEP = 32.0
+
+    def send_view(self):
+        """Tell the server what the camera shows (so it sends pixels in view), when it changed by a tile or more, at most 5 times a second."""
+        now = time.monotonic()
+
+        if now - self.view_time < self.VIEW_INTERVAL:
+            return
+
+        x0, y0 = self.renderer.screen_to_world((0, 0))
+        x1, y1 = self.renderer.screen_to_world((self.renderer.width, self.renderer.height))
+        rect = [round(x0), round(y0), round(x1), round(y1)]
+        last = self.view_sent
+
+        if last is None or any(abs(a - b) >= self.VIEW_STEP for a, b in zip(rect, last)):
+            if self.client.send_view(rect):
+                self.view_sent, self.view_time = rect, now
 
     def send_places(self):
         for blueprint_id, x, y in self.renderer.take_place_requests():
@@ -173,6 +196,7 @@ class Game:
             if server.state != SERVER_READY:
                 return "Starting server..."
             self.client = Client(server.url, name="player")
+            self.view_sent = None
             self.client.start()
             return "Connecting..."
         if client.state in (FAILED, CLOSED):
@@ -229,6 +253,7 @@ class Game:
                     self.renderer.menu_requested = False
                     self.back_to_menu()
                     continue
+                self.send_view()
                 self.send_places()
                 self.send_acts()
                 self.send_saves()

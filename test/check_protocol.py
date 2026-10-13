@@ -21,6 +21,7 @@ def expect_error(label, call):
 
 samples = [
     (p.join("sam"), p.CLIENT_TYPES),
+    (p.view([0.0, 0.0, 1280, 720.5]), p.CLIENT_TYPES),
     (p.welcome(1, 12345, {"width": 200, "height": 200, "tag_modifiers": {"all": {"scale": 1.3}}}, "ab" * 32, 0, 20), p.SERVER_TYPES),
     (p.command(1, "move", {"ids": [1, 2], "target": [320.0, 480.0]}), p.CLIENT_TYPES),
     (p.tick_update(5, enter=[{"id": 1, "x": 1.5}], update=[{"id": 2, "x": 3.0}], leave=[3], events=[{"kind": "fired"}], ack=1), p.SERVER_TYPES),
@@ -46,11 +47,11 @@ expect_error("missing field", lambda: p.encode({"type": "join", "name": "sam"}))
 expect_error("wrong type", lambda: p.encode({"type": "join", "name": 5, "protocol": 1}))
 expect_error("bool as int", lambda: p.encode({"type": "join", "name": "sam", "protocol": True}))
 expect_error("extra field", lambda: p.encode({"type": "join", "name": "sam", "protocol": 1, "admin": True}))
-expect_error("client sends welcome", lambda: p.decode(p.encode(samples[1][0]), p.CLIENT_TYPES))
-expect_error("server sends command", lambda: p.decode(p.encode(samples[2][0]), p.SERVER_TYPES))
+expect_error("client sends welcome", lambda: p.decode(p.encode(samples[2][0]), p.CLIENT_TYPES))
+expect_error("server sends command", lambda: p.decode(p.encode(samples[3][0]), p.SERVER_TYPES))
 expect_error("text frame", lambda: p.decode('{"type": "join"}'))
 expect_error("garbage bytes", lambda: p.decode(b"\xc1\xc1\xc1"))
-expect_error("truncated", lambda: p.decode(p.encode(samples[1][0])[:10]))
+expect_error("truncated", lambda: p.decode(p.encode(samples[2][0])[:10]))
 expect_error("trailing bytes", lambda: p.decode(p.encode(samples[0][0]) + b"\x00"))
 expect_error("list at top level", lambda: p.decode(msgpack.packb([1, 2, 3])))
 expect_error("oversized", lambda: p.decode(b"\x00" * (p.MAX_MESSAGE_BYTES + 1)))

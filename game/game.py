@@ -260,6 +260,7 @@ class Game:
                 self.send_inspects()
                 self.send_edits()
                 self.show_errors(self.client.poll())
+                self.renderer.add_transient_events(self.client.take_transient_events())
                 self.renderer.update(delta_time)
                 self.renderer.render(self.client.view())
         finally:

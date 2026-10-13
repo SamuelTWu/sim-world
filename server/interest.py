@@ -176,6 +176,26 @@ def clean_view(rect, width, height, max_size):
     return x0, y0, x1, y1
 
 
+def in_area(grid, own_pixels, view, x, y, cells_around=INTEREST_CELLS, margin=0.0):
+    """True if the world point (x, y) is where a client looks: in the cells around one of its own pixels, or in its camera rectangle (widened by margin).
+
+    The same area visible_ids() uses for pixels, for things that have a place but no id (transient events).
+    """
+    cx, cy = grid.cell_of(x, y)
+
+    for _, ox, oy in own_pixels:
+        ocx, ocy = grid.cell_of(ox, oy)
+
+        if abs(cx - ocx) <= cells_around and abs(cy - ocy) <= cells_around:
+            return True
+
+    if view is not None:
+        x0, y0, x1, y1 = view
+        return x0 - margin <= x <= x1 + margin and y0 - margin <= y <= y1 + margin
+
+    return False
+
+
 def visible_ids(grid, own_pixels, view=None, cells_around=INTEREST_CELLS, margin=0.0, extra=0.0):
     """The ids of every pixel a client may be told about this tick (README 7.2), as a set.
 

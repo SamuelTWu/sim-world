@@ -5,6 +5,7 @@ Feeds real tick_update messages (built by the server's diff, packed and unpacked
 from types import SimpleNamespace as NS
 
 from server import protocol as proto
+from server.protocol import POSITION_SCALE as SCALE
 from server import replication
 from server.client import READY, Client
 from server.replica import apply_tick_update
@@ -74,7 +75,7 @@ ok(mine == {}, "enter, then update, then leave in one message")
 # an enter for a pixel already known replaces it (a resync)
 apply_tick_update(mine, {"enter": [{"id": 6, "x": 1, "y": 2, "name": "a"}]})
 apply_tick_update(mine, {"enter": [{"id": 6, "x": 9, "y": 9, "name": "b"}]})
-ok(len(mine) == 1 and mine[6].name == "b" and mine[6].position.x == 9.0, "a repeated enter replaces")
+ok(len(mine) == 1 and mine[6].name == "b" and mine[6].position.x == 9 / SCALE, "a repeated enter replaces")
 
 # damaged messages never half-apply
 before = {6: (mine[6].position.x, mine[6].name)}
@@ -107,7 +108,7 @@ for step in range(100):
     shown = {i for i in pixels if rng.random() < 0.8}
     send(ids=shown, tick=step + 2)
     ok(set(client.entities) == set(known) == shown, "same pixels as the server remembers")
-    ok(all((client.entities[i].position.x, client.entities[i].position.y) == replication.position(pixels[i]) and client.entities[i].name == pixels[i].name for i in shown), "same positions and names")
+    ok(all((client.entities[i].position.x * SCALE, client.entities[i].position.y * SCALE) == replication.position(pixels[i]) and client.entities[i].name == pixels[i].name for i in shown), "same positions and names")
 
 ok(client.pixel_stats["unknown"] == 0 and client.pixel_stats["skipped"] == 0, "a clean session never sees an unknown id or a bad entry")
 print(f"all {checks} checks passed")

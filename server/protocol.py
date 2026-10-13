@@ -7,7 +7,7 @@ Rules:
 - Use msgpack 1.x. Map keys must be strings (use lists, not int-keyed dicts).
 - Tuples arrive as lists, sets cannot be sent (send sorted lists), floats are 64-bit.
 - Optional fields are left out when empty, so read them with .get(key, default).
-- Bump PROTOCOL_VERSION whenever a message changes shape.
+- Pixel positions are small ints (POSITION_SCALE). Bump PROTOCOL_VERSION whenever a message changes shape.
 
 Client -> server: join, command, view
 Server -> client: welcome, tick_update, world_delta, entity_info, command_result, order_failed, error
@@ -15,8 +15,23 @@ Server -> client: welcome, tick_update, world_delta, entity_info, command_result
 import msgpack
 from msgpack.exceptions import UnpackException
 
-PROTOCOL_VERSION = 4
+PROTOCOL_VERSION = 6
 MAX_MESSAGE_BYTES = 1_000_000
+
+# Pixel positions travel as whole numbers of 1/POSITION_SCALE world units ("x": 4400 means 1100.0). A 64-bit float costs 9 bytes
+# in msgpack and a number up to 65535 only 3, and it never has a long tail of decimals. 4 means a quarter of a world unit
+# (1/128 of a tile), far finer than anything visible, and keeps a 500-tile world (16000 units = 64000) inside 3 bytes.
+POSITION_SCALE = 4
+
+
+def to_wire(value):
+    """A position in world units as the small integer that is sent."""
+    return round(value * POSITION_SCALE)
+
+
+def from_wire(value):
+    """The world position a received integer stands for."""
+    return value / POSITION_SCALE
 
 JOIN = "join"
 WELCOME = "welcome"
@@ -67,6 +82,14 @@ def welcome(player_id, seed, settings, checksum, tick, tick_rate):
 
 def command(seq, name, args=None):
     return {"type": COMMAND, "seq": seq, "name": name, "args": args or {}}
+
+
+def transient_event(kind, type, start, end):
+    """One event for tick_update's `events`: something that was SEEN but is not a pixel (a shot, an impact), drawn by the client on its own.
+
+    `start` and `end` are (x, y) in world units, sent as small ints like pixel positions. Pixel ids are never in it, so it cannot leak a hidden pixel.
+    """
+    return {"kind": kind, "type": type, "from": [to_wire(start[0]), to_wire(start[1])], "to": [to_wire(end[0]), to_wire(end[1])]}
 
 
 def view(rect):

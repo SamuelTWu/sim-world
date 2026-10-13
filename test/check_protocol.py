@@ -26,6 +26,7 @@ samples = [
     (p.command(1, "move", {"ids": [1, 2], "target": [320.0, 480.0]}), p.CLIENT_TYPES),
     (p.tick_update(5, enter=[{"id": 1, "x": 1.5}], update=[{"id": 2, "x": 3.0}], leave=[3], events=[{"kind": "fired"}], ack=1), p.SERVER_TYPES),
     (p.tick_update(6), p.SERVER_TYPES),
+    (p.tick_update(6, events=[p.transient_event("fired", "arrow", (100.0, 200.0), (400.5, 200.0))]), p.SERVER_TYPES),
     (p.world_delta(5, [[10, 10, "stone"], [11, 10, "stone"]]), p.SERVER_TYPES),
     (p.entity_info(7, {"id": 7, "stats": {"health": 1.0}}, seq=3), p.SERVER_TYPES),
     (p.command_result(4, [1, 2], [[3, "unavailable"]]), p.SERVER_TYPES),

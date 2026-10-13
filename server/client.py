@@ -26,12 +26,13 @@ This file imports nothing from game/ (the world builder is loaded when it is nee
 """
 import queue
 import threading
+import time
 
 from websockets.exceptions import ConnectionClosed, InvalidHandshake, InvalidURI
 from websockets.sync.client import connect
 
 from . import protocol as proto
-from .replica import Stats, View, apply_tick_update, apply_world_delta
+from .replica import ServerClock, decode_transient_events, Stats, View, apply_tick_update, apply_world_delta, smooth
 
 DEFAULT_URL = "ws://127.0.0.1:8765"
 
@@ -59,6 +60,8 @@ class Client:
         self.generator = None
         self.world = None
         self.entities = {}  # the pixels this client knows, id -> ReplicatedEntity: added on enter, patched on update, removed on leave
+        self.clock = None  # ServerClock, created once the welcome says the tick rate; used to draw pixels one tick behind (smooth movement)
+        self.pending_transient_events = []  # transient events (shots, impacts) received but not yet due: they start when the pixels are drawn up to that moment
         self.pixel_stats = Stats()  # totals of what the server's tick_updates did to self.entities (unknown > 0 means a missed enter)
         self.inbox = queue.Queue()
         self.seq = 0
@@ -89,6 +92,12 @@ class Client:
         if self.state != READY:
             raise RuntimeError("the client has no world yet")
 
+        if self.clock is not None:
+            render_time = self.clock.render_time(time.monotonic())
+
+            if render_time is not None:
+                smooth(self.entities.values(), render_time)
+
         return View(self.world, self.generator.maps, self.generator.features, list(self.entities.values()), self.player_id)
 
     def poll(self):
@@ -105,12 +114,44 @@ class Client:
                 return messages
 
             if message["type"] == proto.TICK_UPDATE:
-                self.pixel_stats.add(apply_tick_update(self.entities, message))
+                self.pixel_stats.add(self.apply_pixels(message))
 
             elif message["type"] == proto.WORLD_DELTA:
                 self.apply_delta(message)
 
             messages.append(message)
+
+    def apply_pixels(self, message):
+        """Apply a tick_update, stamped with the server time it belongs to so positions can be smoothed."""
+        rate = (self.welcome or {}).get("tick_rate") or 0
+
+        if rate <= 0:
+            self.pending_transient_events.extend(decode_transient_events(message))
+            return apply_tick_update(self.entities, message)
+
+        if self.clock is None:
+            self.clock = ServerClock(1.0 / rate)
+
+        stamp = message["tick"] / rate
+        self.clock.observe(stamp, message.get("_received", time.monotonic()))
+        self.pending_transient_events.extend(decode_transient_events(message, stamp))
+        del self.pending_transient_events[:-512]
+        return apply_tick_update(self.entities, message, stamp, 1.0 / rate)
+
+    def take_transient_events(self):
+        """The transient events that are due now, as [{"kind", "type", "from", "to", "at"}], and forget them. The renderer animates them itself.
+
+        Pixels are drawn one tick behind the newest data (smooth movement), so a transient event waits until the drawing has reached the moment it
+        happened: a shot then leaves the shooter where the shooter is drawn.
+        """
+        if not self.pending_transient_events:
+            return []
+
+        render_time = self.clock.render_time(time.monotonic()) if self.clock is not None else None
+        due = [event for event in self.pending_transient_events if event["at"] is None or render_time is None or event["at"] <= render_time]
+        taken = {id(event) for event in due}
+        self.pending_transient_events = [event for event in self.pending_transient_events if id(event) not in taken]
+        return due
 
     def apply_delta(self, message):
         """Put a world_delta's tile changes onto the locally generated world and remember which tiles changed."""
@@ -237,7 +278,9 @@ class Client:
             self.done.set()
 
             while True:
-                self.inbox.put(self.receive())
+                message = self.receive()
+                message["_received"] = time.monotonic()  # when it arrived, not when the game gets round to polling it (smooth movement uses this)
+                self.inbox.put(message)
         except ConnectionClosed as closed:
             if self.closing:
                 self.finish(CLOSED)

@@ -1,3 +1,4 @@
+from ...entity.system import transientEvents
 from ..attack_method import ATTACKED, AttackMethod, attack_method
 from ...entity.system.simContext import TILE_UNITS
 
@@ -20,6 +21,7 @@ class Collision(AttackMethod):
     def attack(self, ctx, attacker, target, params):
         amount = float(params["damage"])
         target.health = max(0.0, target.health - amount)
+        transientEvents.hit(ctx, attacker, target, "melee")
         events = ctx.events
 
         if events is not None:

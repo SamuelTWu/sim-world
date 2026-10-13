@@ -9,6 +9,7 @@ from .memorySystem import MemorySystem
 from .relationshipSystem import RelationshipSystem
 from .decisionSystem import DecisionSystem, Decision, Action
 from .eventBus import EventBus
+from .transientEvents import TransientEventLog
 from .simContext import SimContext
 from .stimulus import StimulusField
 from .orders import follow_orders, order_finished
@@ -31,8 +32,9 @@ class SystemRunner:
         self.relationship_system = RelationshipSystem()
         self.decision_system = DecisionSystem()
         self.events = EventBus()
+        self.transient_events = TransientEventLog()  # shots, impacts: noted here, sent to players as events (transientEvents.py)
         self.order_notices = []  # orders that failed, for the server to tell the player (see orders.notify)
-        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng)
+        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng, transient_events=self.transient_events)
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}
         self.think_timers: dict[int, float] = {}

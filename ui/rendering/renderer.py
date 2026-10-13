@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import pygame
@@ -5,6 +6,7 @@ import pygame
 from .camera import Camera
 from .world_renderer import WorldRenderer
 from .entity_renderer import EntityRenderer
+from .transient_events import TransientEvents
 from .hints import Hints
 from .selection import Selection
 from .sprites import get_sprite, load_sprites
@@ -49,6 +51,7 @@ class Renderer:
         self.gui.sprite_color = lambda sprite_id: get_sprite(sprite_id).color
         self.selection = Selection(self.gui)
         self.hints = Hints()
+        self.transient_events = TransientEvents()
         load_sprites(ENTITY_FOLDER)
 
         self.debug_map_index = -1
@@ -174,6 +177,10 @@ class Renderer:
         """Blueprints the player designed and saved in the editor since the last call, as [(name, definition)]. The game sends them as `save_blueprint` commands."""
         return self.gui.take_saves()
 
+    def add_transient_events(self, events):
+        """Start drawing the transient events (shots, impacts) the server reported, from Client.take_transient_events(). They animate here and vanish by themselves."""
+        self.transient_events.add(events, time.monotonic())
+
     def update(self, delta_time):
         self.camera.update(delta_time)
         self.gui.update()
@@ -210,6 +217,7 @@ class Renderer:
             self.entity_renderer.render_entities(entities)
 
         self.selection.draw_world(self.screen, self.view_entities, self.camera)
+        self.transient_events.draw(self.screen, self.camera, time.monotonic())
         self.hints.draw(self.screen, self.camera, self.gui)
         self.gui.draw(self.screen)
         self.selection.draw_menu(self.screen)

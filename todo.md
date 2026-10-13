@@ -112,24 +112,28 @@ Goal: clients only receive pixels near their own pixels.
 - [X] 7.4 Hysteresis: leave radius slightly larger than enter radius so pixels don't flicker at the edge.
 - [X] 7.5 Visibility rules: invisible pixels and spies are not sent to enemies. Do the check here on the server.
 - [X] 7.6 Client keeps a dict of known pixels, adds on enter, patches on update, removes on leave.
-- [ ] 7.7 Test: pixel walks in and out of range, with no flicker and no leaked invisible pixels.
+- [X] 7.7 Test: pixel walks in and out of range, with no flicker and no leaked invisible pixels.
 
 ## Phase 8: Smoothness
-- [ ] 8.1 Client interpolates pixel positions between the last two updates (render ~1 tick behind).
-- [ ] 8.2 Quantize data: send positions as small ints, only changed fields, no floats with long decimals.
-- [ ] 8.3 Bullets/effects as events: server sends `fired(from, to, type)`, clients animate locally. No bullet pixels streamed.
+- [X] 8.1 Client interpolates pixel positions between the last two updates (render ~1 tick behind).
+- [X] 8.2 Quantize data: send positions as small ints, only changed fields, no floats with long decimals.
+- [X] 8.3 Quick/effects as events: server sends (for example)`fired(from, to, type)`, clients animate locally. No fast moving, ephemeral pixels streamed (for example a bullet/projectile).
 - [ ] 8.4 Reconnect: client rejoins with its player id and gets a fresh `welcome` + nearby state.
 
-## Phase 9: Performance
-Do this when the server tick starts taking too long. Measure first.
+## **Phase 9: Performance**
+maximize server capacity without sacrificing deterministic simulation or emergent gameplay. Measure first, optimize the actual bottlenecks.
+- [ ] 9.1 Log tick duration, tick overruns, bytes sent per client, active pixels, active projectiles, and collision counts every few seconds.
+- [ ] 9.2 Only run expensive simulation systems in relevant active regions. Preserve correct cross-chunk movement, projectile travel, and interactions. Do not unload or freeze authoritative state merely because no client currently sees it.
+- [ ] 9.3 Sleep idle pixels. Wake them on relevant events, nearby changes, commands, or scheduled updates.
+- [ ] 9.4 Use tiered think rates for noncritical AI and needs systems. Keep collision and other time-sensitive gameplay checks sufficiently frequent.
+- [ ] 9.5 If profiling identifies bulk movement as a bottleneck, use persistent structure-of-arrays storage or vectorized operations for homogeneous pixels/projectiles. Avoid rebuilding arrays every tick.
+- [ ] 9.6 Use cheap rules for simple pixels rather than invoking a full decision system unnecessarily.
+- [ ] 9.7 If still too slow, profile with `cProfile` and consider Numba, Cython, or other compiled hot loops.
+- [ ] 9.8 Add load tests that simulate many clients, dense entity clusters, and large projectile bursts. Record maximum sustainable player/entity counts at the target tick rate.
+- [ ] 9.9 Bound expensive work per tick. Prevent pathological behaviors, collision storms, projectile creation, or cascading interactions from causing unbounded CPU or memory usage.
+- [ ] 9.10 Optimize network traffic separately from simulation. Measure serialization cost, update frequency, interest-management cost, and per-client bandwidth. Prefer events, quantized changed fields, and batched messages.
+- [ ] 9.11 Preserve determinism when optimizing. Any changes to iteration order, parallelism, floating-point calculations, or RNG usage must be tested against the authoritative simulation's determinism requirements.
 
-- [ ] 9.1 Log tick time and bytes sent per client every few seconds.
-- [ ] 9.2 Only simulate chunks near some player.
-- [ ] 9.3 Sleep idle pixels. Wake them on events.
-- [ ] 9.4 Tiered think rates: distant pixels run decision/need systems less often (e.g. every 5th tick).
-- [ ] 9.5 Move bulk movement to numpy arrays (positions, velocities) instead of one Python object per pixel.
-- [ ] 9.6 Prefer cheap rules (flocking math, simple state) over a full decision system for simple pixels.
-- [ ] 9.7 If still too slow, profile with `cProfile` and consider moving hot loops to numpy/Numba/Cython.
 
 ## Phase 10: Persistence + Accounts
 - [ ] 10.1 Player ids / simple login (name + token to start).
@@ -150,25 +154,8 @@ Keep these true from day one so the web stays possible:
 - Transport is WebSockets and encoding is msgpack/JSON (no Python-only formats).
 - The client is thin: no game logic, all decisions on the server.
 
-Pick one route when you get here:
-- [ ] Route A: Pygame client in browser with pygbag (WebAssembly).
-      HOW: restructure the main loop around `asyncio`, verify numpy/msgpack/websockets work in the browser build. Expect slower performance than native.
-- [ ] Route B: rewrite the client in JS/TS (Canvas or PixiJS).
-      HOW: the server keeps working unchanged. Problem: JS can't easily reproduce your Python world generation bit-for-bit. Add a mode where the server sends terrain chunks instead of relying on the seed.
 
----
 
-### Performance Notes (reference)
-- Server tick time bottlenecks before bandwidth does.
-- Fortnite works because: dedicated C++ cloud servers, ~100 players, mostly static world, hitscan or locally simulated bullets, prioritized and quantized updates.
-- Your game (thousands of small units) is closer to an RTS. RTS games often use deterministic lockstep (only commands are sent). We are NOT doing that because it needs perfect determinism for the whole simulation, no per-client visibility filtering, and awkward late joins. Stay with authoritative server + interest management.
-
-### Open Questions
-- Chunk size?
-- Player cap per server?
-- How long should the server keep simulating when no players are near an area?
-- What does the client show before the server confirms a command?
-- Win conditions and match structure (affects persistence and when worlds reset).
 
 todo:
 - Carried pixels: they don’t yet follow their carrier or sit idle.

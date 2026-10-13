@@ -6,6 +6,7 @@ import random
 from types import SimpleNamespace as NS
 
 from server import replication
+from server.protocol import POSITION_SCALE as SCALE
 from server.interest import SpatialGrid, visible_ids
 from server.replica import apply_tick_update
 
@@ -39,18 +40,20 @@ def tick(view=None):
 
 enter, update, leave = tick()
 ok([e["id"] for e in enter] == [1, 2] and not update and not leave, "first tick: own pixel and the neighbour enter, the far ones do not")
-ok(enter[1] == {"id": 2, "sprite_id": "pixel", "owner": 2, "name": "neighbour", "x": 1100.0, "y": 1000.0}, "enter carries the full state")
+ok(enter[1] == {"id": 2, "sprite_id": "pixel", "owner": 2, "name": "neighbour", "x": 1100 * SCALE, "y": 1000 * SCALE}, "enter carries the full state, positions as whole numbers")
 ok(tick() == ([], [], []), "nothing changed: nothing is sent")
 
 pixels[2].position.x = 1130.5
 enter, update, leave = tick()
-ok(not enter and update == [{"id": 2, "x": 1130.5}] and not leave, "a move sends only the changed field (x)")
+ok(not enter and update == [{"id": 2, "x": round(1130.5 * SCALE)}] and not leave, "a move sends only the changed field (x)")
 pixels[2].name, pixels[2].position.y = "renamed", 1010
-ok(tick()[1] == [{"id": 2, "y": 1010.0, "name": "renamed"}], "changed fields only, several at once")
-pixels[2].position.x += 0.001
-ok(tick() == ([], [], []), "a change below the position precision is not sent")
+ok(tick()[1] == [{"id": 2, "y": 1010 * SCALE, "name": "renamed"}], "changed fields only, several at once")
+pixels[2].position.x += 0.1
+ok(tick() == ([], [], []), "a change below one quantum (a quarter of a world unit) is not sent")
+pixels[2].position.x += 0.3
+ok(len(tick()[1]) == 1, "a change of a quantum or more is")
 
-ok(tick(view=(8900, 8900, 9100, 9100))[0] == [{"id": 3, "sprite_id": "pixel", "owner": 2, "name": "p", "x": 9000.0, "y": 9000.0}], "the camera moves over a far pixel: it enters")
+ok(tick(view=(8900, 8900, 9100, 9100))[0] == [{"id": 3, "sprite_id": "pixel", "owner": 2, "name": "p", "x": 9000 * SCALE, "y": 9000 * SCALE}], "the camera moves over a far pixel: it enters")
 enter, update, leave = tick(view=(8900, 8900, 9100, 9100))
 ok(not (enter or update or leave), "and stays quiet while in view")
 ok(tick()[2] == [3], "the camera moves away: it leaves")
@@ -84,7 +87,7 @@ for step in range(60):
     own = [(1, pixels[1].position.x, pixels[1].position.y)]
     shown = {i for i in visible_ids(grid, own, view) if i in pixels and pixels[i].alive}
     ok(set(mirror) == shown, "the client's pixels are exactly the visible, living ones")
-    ok(all((mirror[i].position.x, mirror[i].position.y) == replication.position(pixels[i]) and mirror[i].owner == pixels[i].owner for i in mirror), "and their positions and owners are current")
+    ok(all((round(mirror[i].position.x * SCALE), round(mirror[i].position.y * SCALE)) == replication.position(pixels[i]) and mirror[i].owner == pixels[i].owner for i in mirror), "and their positions and owners are current")
 
 # 7.4 hysteresis: a pixel walking back and forth over the edge does not flicker
 EXTRA = 2 * TILE

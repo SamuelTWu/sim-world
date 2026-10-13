@@ -20,6 +20,7 @@ class SimContext:
     rng: random.Random | None = None
     tick: int = 0
     spawn: Any = None
+    transient_events: Any = None  # TransientEventLog (transientEvents.py): things that are seen but are not pixels
 
     def __post_init__(self):
         if self.rng is None:

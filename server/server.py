@@ -28,6 +28,7 @@ from game.simulation import TICK_DT, TICK_RATE
 from . import protocol as proto
 from . import replication
 from game.command.visibility import can_see
+from .transientsync import transient_events_for
 from .interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visible_ids
 from .chunksync import ChunkSync, batches, wanted_chunks
 from game.entity.system.simContext import TILE_UNITS
@@ -63,6 +64,7 @@ class Client:
     view: tuple | None = None
     visible: set = field(default_factory=set)
     keep: set = field(default_factory=set)
+    own: list = field(default_factory=list)  # [(id, x, y)] of the player's living pixels, as of this tick
 
 
 def clean_name(name):
@@ -148,7 +150,10 @@ class Server:
                 self.send(client, proto.order_failed(notice["id"], notice["kind"], notice["reason"]))
 
     def replicate(self):
-        """Tell each player what changed about the pixels they can see (see replication.py). Silent when nothing changed."""
+        """Tell each player what changed about the pixels they can see (see replication.py), plus the transient events (shots, impacts) they can see (transientsync.py). Silent when nothing happened."""
+        log = getattr(self.sim.systems, "transient_events", None)
+        transients = log.take() if log is not None else []
+
         for client in self.players.values():
             if client.closing:
                 continue
@@ -156,8 +161,10 @@ class Server:
             self.send_terrain(client)
             enter, update, leave = replication.diff(client.known, self.compute_visible(client), self.seen_by(client), client.keep)
 
-            if enter or update or leave:
-                self.send(client, proto.tick_update(self.sim.tick, enter, update, leave))
+            events = transient_events_for(transients, client.player_id, client.own, client.view, self.grid, margin=VIEW_MARGIN_TILES * TILE_UNITS) if transients else []
+
+            if enter or update or leave or events:
+                self.send(client, proto.tick_update(self.sim.tick, enter, update, leave, events))
 
     def send_terrain(self, client):
         """Send tile changes the player has not got: whole logs of chunks that just became near one of their pixels, and new changes in chunks they already have (see chunksync.py)."""
@@ -244,6 +251,7 @@ class Server:
             if entity is not None and entity.alive:
                 own.append((entity_id, entity.position.x, entity.position.y))
 
+        client.own = own
         margin = VIEW_MARGIN_TILES * TILE_UNITS
         client.visible = visible_ids(self.grid, own, client.view, margin=margin)
         client.keep = visible_ids(self.grid, own, client.view, margin=margin, extra=LEAVE_EXTRA_TILES * TILE_UNITS)

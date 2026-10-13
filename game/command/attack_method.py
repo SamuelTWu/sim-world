@@ -44,7 +44,9 @@ class AttackMethod:
 
     Examples of what other methods would do:
       explode     reach = blast radius; attack() hurts everything inside it, then kills the attacker
-      projectile  reach = range; attack() creates a projectile pixel with ctx.spawn(...) that flies at the target
+      ranged      reach = range; attack() hurts the target at once and calls transientEvents.fired(ctx, attacker, target, "arrow") so every
+                  client that sees it animates a shot. Do NOT spawn a projectile pixel for it: bullets are too fast and too short-lived to
+                  stream (see entity/system/transientEvents.py and command/attack_methods/ranged.py).
     """
 
     name = ""

@@ -7,15 +7,16 @@ in and out, a pixel enters when it is in the ENTER set (`ids`) but only leaves w
 set (`keep`, see interest.visible_ids extra=). The server remembers what it last told each client, in
 `known` (id -> the state it sent), so it never repeats itself.
 """
-POSITION_DECIMALS = 2
+from .protocol import to_wire
 
 
 def position(entity):
-    return round(entity.position.x, POSITION_DECIMALS), round(entity.position.y, POSITION_DECIMALS)
+    """The pixel's position as it is sent: whole numbers of 1/POSITION_SCALE world units (protocol.py). A move smaller than that is not sent."""
+    return to_wire(entity.position.x), to_wire(entity.position.y)
 
 
 def entity_state(entity):
-    """Everything a client needs to draw a pixel, without its id. Add a field here and `enter` / `update` carry it."""
+    """Everything a client needs to draw a pixel, without its id, already in wire form (x and y are small ints). Add a field here and `enter` / `update` carry it."""
     x, y = position(entity)
     return {"sprite_id": entity.sprite_id, "owner": entity.owner, "name": entity.name, "x": x, "y": y}
 

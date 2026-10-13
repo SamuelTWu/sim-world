@@ -151,8 +151,7 @@ class Server:
                 continue
 
             self.send_terrain(client)
-            self.compute_visible(client)
-            enter, update, leave = replication.diff(client.known, self.sim.owned_ids(client.player_id), self.commands.get_entity)
+            enter, update, leave = replication.diff(client.known, self.compute_visible(client), self.commands.get_entity)
 
             if enter or update or leave:
                 self.send(client, proto.tick_update(self.sim.tick, enter, update, leave))

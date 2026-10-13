@@ -19,6 +19,7 @@ class ReplicatedEntity:
     id: int
     sprite_id: str = "pixel"
     owner: int | None = None
+    name: str = ""
     position: Position = field(default_factory=Position)
 
 
@@ -37,7 +38,7 @@ def apply_tick_update(entities, message):
     """Apply a tick_update's enter / update / leave to a dict of id -> ReplicatedEntity. Bad entries are skipped."""
     for state in message.get("enter", ()):
         try:
-            entities[state["id"]] = ReplicatedEntity(state["id"], state.get("sprite_id", "pixel"), state.get("owner"), Position(float(state["x"]), float(state["y"])))
+            entities[state["id"]] = ReplicatedEntity(state["id"], state.get("sprite_id", "pixel"), state.get("owner"), state.get("name") or "", Position(float(state["x"]), float(state["y"])))
         except (KeyError, TypeError, ValueError):
             continue
 
@@ -45,8 +46,20 @@ def apply_tick_update(entities, message):
         try:
             entity = entities.get(state["id"])
 
-            if entity is not None:
-                entity.position = Position(float(state["x"]), float(state["y"]))
+            if entity is None:
+                continue
+
+            if "x" in state or "y" in state:
+                entity.position = Position(float(state.get("x", entity.position.x)), float(state.get("y", entity.position.y)))
+
+            if "sprite_id" in state:
+                entity.sprite_id = state["sprite_id"]
+
+            if "owner" in state:
+                entity.owner = state["owner"]
+
+            if "name" in state:
+                entity.name = state["name"]
         except (KeyError, TypeError, ValueError):
             continue
 

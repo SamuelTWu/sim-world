@@ -183,7 +183,7 @@ class Renderer:
         world, maps, features, entities = view.world, view.maps, view.features, view.entities
         self.view_entities, self.player_id = list(entities or ()), getattr(view, "player_id", None)
         self.selection.prune(self.view_entities, self.player_id)
-        self.hints.update(self.view_entities)
+        self.hints.update(self.view_entities, player_id=self.player_id)
 
         if world is not None:
             world_size = (world.width, world.height)

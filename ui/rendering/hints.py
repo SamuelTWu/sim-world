@@ -53,10 +53,10 @@ class Hints:
                 else:
                     item["born"] = now  # the pixel is on its way: wait for it again
 
-    def update(self, entities, now=None):
-        """Drop what has been answered or has run out of time. `entities` are the pixels the client knows: a NEW one settles the oldest place hint."""
+    def update(self, entities, now=None, player_id=None):
+        """Drop what has been answered or has run out of time. `entities` are the pixels the client knows: a NEW one of the player's own settles the oldest place hint (other players' pixels come into view too)."""
         now = time.monotonic() if now is None else now
-        ids = {entity.id for entity in entities}
+        ids = {entity.id for entity in entities if player_id is None or entity.owner == player_id}
 
         if self.known is not None:
             for _ in ids - self.known:

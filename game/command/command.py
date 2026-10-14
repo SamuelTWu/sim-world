@@ -37,6 +37,7 @@ import re
 import traceback
 from dataclasses import dataclass, field
 
+from ..entity.system.activity import wake
 from ..entity.system.simContext import TILE_UNITS
 
 BLUEPRINT_ID = re.compile(r"^[A-Za-z0-9_\-]{1,64}$")
@@ -368,6 +369,20 @@ def resolve_box(ctx, player_id, handler, args):
     return resolved
 
 
+def wake_applied(ctx, outcome):
+    """A command that was applied to pixels wakes them if they are asleep (9.3), so an order is taken up at once."""
+    if not outcome.ok or not outcome.applied:
+        return
+
+    context = ctx.sim.systems.context
+
+    for entity_id in outcome.applied:
+        entity = ctx.get_entity(entity_id) if is_int(entity_id) else None
+
+        if entity is not None:
+            wake(context, entity)
+
+
 def execute(ctx, player_id, name, args):
     load_commands()
     handler = COMMANDS.get(name) if isinstance(name, str) else None
@@ -379,7 +394,9 @@ def execute(ctx, player_id, name, args):
         if handler.selects and isinstance(args, dict) and "box" in args:
             args = resolve_box(ctx, player_id, handler, args)
 
-        return handler.run(ctx, player_id, args)
+        outcome = handler.run(ctx, player_id, args)
+        wake_applied(ctx, outcome)
+        return outcome
     except Rejected as problem:
         return Outcome(False, str(problem))
     except Exception:

@@ -67,6 +67,7 @@ class Simulation:
         )
 
         self.systems.context.spawn = self.spawn_pixel
+        self.world.on_tile_change = self.systems.activity.tile_changed  # a changed tile wakes the sleeping pixels around it (9.3)
 
     def spawn_pixel(self, definition, owner, x, y):
         """Create a pixel from a blueprint definition at (x, y) for an owner (a player id, or None) and record who owns it.

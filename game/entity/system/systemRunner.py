@@ -14,7 +14,7 @@ from .counters import Counters, count
 from .transientEvents import TransientEventLog
 from .simContext import SimContext
 from .stimulus import StimulusField
-from .orders import follow_orders, order_finished
+from .orders import ORDER_KEY, follow_orders, order_finished
 from .task import Task, RUNNING, FAILED
 from .territory import Territory
 from .territoryRules import register_territory_rules
@@ -36,7 +36,8 @@ class SystemRunner:
         self.events = EventBus()
         self.transient_events = TransientEventLog()  # shots, impacts: noted here, sent to players as events (transientEvents.py)
         self.activity = Activity()  # near / far tiers for the expensive systems (activity.py); Simulation.step refreshes it every tick
-        self.counters = Counters()  # work done this window (tile checks, attacks...), read by the server's metrics (9.1)
+        self.counters = Counters()
+        self.activity.counters = self.counters  # work done this window (tile checks, attacks...), read by the server's metrics (9.1)
         self.order_notices = []  # orders that failed, for the server to tell the player (see orders.notify)
         self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng, transient_events=self.transient_events, counters=self.counters, activity=self.activity)
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
@@ -219,10 +220,19 @@ class SystemRunner:
             if snaps:
                 self.apply_snap(entity)
 
+            if entity.alive and (entity.task is not None or entity.id not in activity.cell_of):
+                activity.moved(entity)  # a pixel arriving in a new cell, or a new pixel, wakes the sleepers next to it (9.3)
+
             if step is None:
                 count(self.context, "think_deferred")
             elif entity.alive and self.should_think(entity, step):
                 self.think(entity)
+
+                if entity.alive:
+                    if entity.task is None and ORDER_KEY not in entity.components:
+                        activity.idle_think(entity, tick)  # nothing to do: after a few of these in a row it sleeps
+                    else:
+                        activity.busy_think(entity)
 
         self.cleanup_removed()
         self.context.tick += 1

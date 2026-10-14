@@ -9,7 +9,7 @@ Client, the inbox, and its own websocket. Sending is queued per client, so a slo
 never stall the tick loop.
 
 Run from the project root:
-    python -m server.server [--host 0.0.0.0] [--port 8765] [--seed N] [--max-players N] [--stats-interval SECONDS] [--active-chunks N] [--far-stride N]
+    python -m server.server [--host 0.0.0.0] [--port 8765] [--seed N] [--max-players N] [--stats-interval SECONDS] [--active-chunks N] [--far-stride N] [--sleep-ticks N]
 """
 import argparse
 import asyncio
@@ -141,10 +141,12 @@ class Server:
         sim = self.sim
         total = sum(1 for entity in sim.entity_manager.all() if entity.alive)
         activity = getattr(sim.systems, "activity", None)
-        pixels = activity.last_active if activity is not None and activity.tiers_on else total
+        working = activity is not None and activity.enabled
+        pixels = activity.last_active if working else total
+        asleep = activity.last_asleep if working else 0
         projectiles = len(getattr(getattr(sim.systems, "projectiles", None), "active", ()))
         counters = getattr(sim.systems, "counters", None)
-        snap = self.metrics.snapshot(now, pixels=pixels, pixels_total=total, projectiles=projectiles, counters=counters.take() if counters is not None else None, players=len(self.players), tick=sim.tick)
+        snap = self.metrics.snapshot(now, pixels=pixels, pixels_total=total, pixels_asleep=asleep, projectiles=projectiles, counters=counters.take() if counters is not None else None, players=len(self.players), tick=sim.tick)
 
         for line in format_lines(snap):
             self.log(f"[server] {line}")
@@ -439,6 +441,7 @@ def main():
     parser.add_argument("--stats-interval", type=float, default=STATS_INTERVAL, help="seconds between the performance log lines (0 = off)")
     parser.add_argument("--active-chunks", type=int, default=None, help="pixels within this many chunks of a pixel a player owns get the full simulation every tick (0 = every pixel does)")
     parser.add_argument("--far-stride", type=int, default=None, help="other pixels run needs, memory and decisions once in this many ticks (1 = every tick)")
+    parser.add_argument("--sleep-ticks", type=int, default=None, help="an idle pixel sleeps and looks around again after this many ticks (0 = pixels never sleep)")
     parser.add_argument("--watch-stdin", action="store_true", help="exit when stdin closes (used by the single-player launcher)")
     args = parser.parse_args()
 
@@ -454,7 +457,7 @@ def main():
         sim.generation_settings.width = sim.generation_settings.height = args.size
 
     sim.start_new_game(args.seed)
-    sim.systems.activity.configure(args.active_chunks, args.far_stride)
+    sim.systems.activity.configure(args.active_chunks, args.far_stride, args.sleep_ticks)
 
     try:
         asyncio.run(Server(sim, args.host, args.port, args.max_players, args.stats_interval).run())

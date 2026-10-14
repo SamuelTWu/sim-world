@@ -35,6 +35,8 @@ class World:
     dirty: set[tuple[int, int]] = field(default_factory=set, init=False, repr=False)
     # The same changes as an ordered log grouped by chunk (see deltas.py).
     deltas: DeltaLog = field(default_factory=DeltaLog, init=False, repr=False)
+    # Called as on_tile_change(x, y) after a tile really changed (the simulation sets it to wake sleeping pixels nearby, 9.3). None = nobody listens.
+    on_tile_change: object = field(default=None, init=False, repr=False, compare=False)
 
     # Checksum of the generated terrain, before any changes. Set by finish_generation().
     generation_checksum: str | None = field(default=None, init=False)
@@ -77,6 +79,9 @@ class World:
             self.changes[(x, y)] = tile.name
             self.dirty.add((x, y))
             self.deltas.record(x, y, tile.name)
+
+        if self.on_tile_change is not None and current.name != tile.name:
+            self.on_tile_change(x, y)
 
         return True
 

@@ -27,6 +27,7 @@ attack or was ordered to. It returns what happened so the behavior knows what to
 import importlib
 import math
 
+from ..entity.system.counters import count
 from ..entity.system.simContext import TILE_UNITS
 from .visibility import can_see
 
@@ -122,5 +123,6 @@ def attack_step(ctx, attacker, target):
         return "waiting"
 
     method.attack(ctx, attacker, target, params)
+    count(ctx, "attacks")
     attacker.components[READY_KEY] = ctx.tick + int(params.get("cooldown_ticks", 0))
     return "hit"

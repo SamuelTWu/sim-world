@@ -4,6 +4,7 @@ roam.py has its own copy of this because it was written first; it could use step
 """
 import math
 
+from .counters import count
 from .simContext import TILE_UNITS
 
 ARRIVED, MOVING, BLOCKED = "arrived", "moving", "blocked"
@@ -34,8 +35,10 @@ def step_toward(entity, context, x, y, delta_time, stop_within=4.0):
     travel = min(distance - stop_within * 0.5, speed * delta_time)
     nx, ny = clamp_to_world(context, entity.position.x + dx / distance * travel, entity.position.y + dy / distance * travel)
     tile = context.tile_at(nx, ny)
+    count(context, "tile_checks")
 
     if tile is None or not tile.can_walk_through():
+        count(context, "blocked_moves")
         return BLOCKED
 
     entity.position.x, entity.position.y = nx, ny

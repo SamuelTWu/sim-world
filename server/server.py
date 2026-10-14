@@ -9,7 +9,7 @@ Client, the inbox, and its own websocket. Sending is queued per client, so a slo
 never stall the tick loop.
 
 Run from the project root:
-    python -m server.server [--host 0.0.0.0] [--port 8765] [--seed N] [--max-players N]
+    python -m server.server [--host 0.0.0.0] [--port 8765] [--seed N] [--max-players N] [--stats-interval SECONDS]
 """
 import argparse
 import asyncio
@@ -30,6 +30,7 @@ from game.simulation import TICK_DT, TICK_RATE
 from . import protocol as proto
 from . import replication
 from game.command.visibility import can_see
+from .metrics import Metrics, format_lines
 from .transientsync import transient_events_for
 from .interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visible_ids
 from .chunksync import ChunkSync, batches, wanted_chunks
@@ -45,7 +46,7 @@ CLOSE_TIMEOUT = 2.0
 MAX_PENDING = 200
 OUTBOX_MAX = 256
 MAX_BEHIND = 0.25
-LOG_INTERVAL = 10.0
+STATS_INTERVAL = 5.0  # seconds between metrics log lines (metrics.py); 0 turns them off
 
 POLICY_VIOLATION = 1008
 TRY_AGAIN_LATER = 1013
@@ -81,11 +82,14 @@ MAX_NOTICES_PER_TICK = 32
 
 
 class Server:
-    def __init__(self, sim, host=DEFAULT_HOST, port=DEFAULT_PORT, max_players=MAX_PLAYERS):
+    def __init__(self, sim, host=DEFAULT_HOST, port=DEFAULT_PORT, max_players=MAX_PLAYERS, stats_interval=STATS_INTERVAL):
         self.sim = sim
         self.host = host
         self.port = port
         self.max_players = max_players
+        self.stats_interval = stats_interval
+        self.metrics = Metrics(TICK_DT)
+        self.log = print  # where the metrics lines go (a test replaces it)
         self.inbox = asyncio.Queue()
         commands.load_commands()
         self.commands = commands.CommandContext(sim)
@@ -103,35 +107,45 @@ class Server:
 
     async def tick_loop(self):
         next_time = time.monotonic()
-        window_start = next_time
-        steps = 0
-        total = longest = 0.0
+        clock = time.perf_counter
 
         while True:
-            started = time.monotonic()
+            started = t0 = clock()
             self.process_inbox()
+            t1 = clock()
             self.sim.step()
+            t2 = clock()
             self.grid.sync(self.sim.entity_manager.all())
+            t3 = clock()
             self.send_order_notices()
+            t4 = clock()
             self.replicate()
-            elapsed = time.monotonic() - started
-
-            steps += 1
-            total += elapsed
-            longest = max(longest, elapsed)
+            t5 = clock()
+            self.metrics.tick(t5 - started, {"inbox": t1 - t0, "step": t2 - t1, "grid": t3 - t2, "notices": t4 - t3, "replicate": t5 - t4})
 
             now = time.monotonic()
 
-            if now - window_start >= LOG_INTERVAL:
-                print(f"[server] tick {self.sim.tick} | players {len(self.players)} | step avg {total / steps * 1000:.1f} ms, max {longest * 1000:.1f} ms (budget {TICK_DT * 1000:.0f} ms)")
-                window_start, steps, total, longest = now, 0, 0.0, 0.0
+            if self.stats_interval > 0 and now - self.metrics.window_start >= self.stats_interval:
+                self.log_stats(now)
 
             next_time += TICK_DT
 
             if now - next_time > MAX_BEHIND:
                 next_time = now
+                self.metrics.behind()
 
             await asyncio.sleep(max(0.0, next_time - now))
+
+    def log_stats(self, now):
+        """Close the metrics window (metrics.py) and print it. The pixel and projectile counts are taken here, once per window, not every tick."""
+        sim = self.sim
+        pixels = sum(1 for entity in sim.entity_manager.all() if entity.alive)
+        projectiles = len(getattr(getattr(sim.systems, "projectiles", None), "active", ()))
+        counters = getattr(sim.systems, "counters", None)
+        snap = self.metrics.snapshot(now, pixels=pixels, projectiles=projectiles, counters=counters.take() if counters is not None else None, players=len(self.players), tick=sim.tick)
+
+        for line in format_lines(snap):
+            self.log(f"[server] {line}")
 
     def process_inbox(self):
         while not self.inbox.empty():
@@ -323,7 +337,9 @@ class Server:
             self.drop(client, "too slow", TRY_AGAIN_LATER)
             return
 
-        client.outbox.put_nowait(proto.encode(message))
+        data = proto.encode(message)
+        self.metrics.sent(client.player_id, client.name, message["type"], len(data), client.outbox.qsize())
+        client.outbox.put_nowait(data)
 
     def reject(self, client, code, text, close_code=POLICY_VIOLATION):
         if client.closing:
@@ -418,6 +434,7 @@ def main():
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--size", type=int, default=None, help="world width and height in tiles (default: the Simulation default)")
     parser.add_argument("--max-players", type=int, default=MAX_PLAYERS)
+    parser.add_argument("--stats-interval", type=float, default=STATS_INTERVAL, help="seconds between the performance log lines (0 = off)")
     parser.add_argument("--watch-stdin", action="store_true", help="exit when stdin closes (used by the single-player launcher)")
     args = parser.parse_args()
 
@@ -435,7 +452,7 @@ def main():
     sim.start_new_game(args.seed)
 
     try:
-        asyncio.run(Server(sim, args.host, args.port, args.max_players).run())
+        asyncio.run(Server(sim, args.host, args.port, args.max_players, args.stats_interval).run())
     except KeyboardInterrupt:
         print("\n[server] stopped")
 

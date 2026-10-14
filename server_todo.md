@@ -122,7 +122,7 @@ Goal: clients only receive pixels near their own pixels.
 
 ## **Phase 9: Performance**
 maximize server capacity without sacrificing deterministic simulation or emergent gameplay. Measure first, optimize the actual bottlenecks.
-- [ ] 9.1 Log tick duration, tick overruns, bytes sent per client, active pixels, active projectiles, and collision counts every few seconds.
+- [X] 9.1 Log tick duration, tick overruns, bytes sent per client, active pixels, active projectiles, and collision counts every few seconds.
 - [ ] 9.2 Only run expensive simulation systems in relevant active regions. Preserve correct cross-chunk movement, projectile travel, and interactions. Do not unload or freeze authoritative state merely because no client currently sees it.
 - [ ] 9.3 Sleep idle pixels. Wake them on relevant events, nearby changes, commands, or scheduled updates.
 - [ ] 9.4 Use tiered think rates for noncritical AI and needs systems. Keep collision and other time-sensitive gameplay checks sufficiently frequent.

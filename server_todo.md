@@ -118,7 +118,7 @@ Goal: clients only receive pixels near their own pixels.
 - [X] 8.1 Client interpolates pixel positions between the last two updates (render ~1 tick behind).
 - [X] 8.2 Quantize data: send positions as small ints, only changed fields, no floats with long decimals.
 - [X] 8.3 Quick/effects as events: server sends (for example)`fired(from, to, type)`, clients animate locally. No fast moving, ephemeral pixels streamed (for example a bullet/projectile).
-- [ ] 8.4 Reconnect: client rejoins with its player id and gets a fresh `welcome` + nearby state.
+- [X] 8.4 Reconnect: client rejoins with its player id and gets a fresh `welcome` + nearby state.
 
 ## **Phase 9: Performance**
 maximize server capacity without sacrificing deterministic simulation or emergent gameplay. Measure first, optimize the actual bottlenecks.

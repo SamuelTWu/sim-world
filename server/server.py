@@ -13,7 +13,9 @@ Run from the project root:
 """
 import argparse
 import asyncio
+import hmac
 import os
+import secrets
 import sys
 import threading
 import time
@@ -47,6 +49,7 @@ LOG_INTERVAL = 10.0
 
 POLICY_VIOLATION = 1008
 TRY_AGAIN_LATER = 1013
+CLOSE_REPLACED = 1000  # normal close: this connection was replaced by a rejoin of the same player
 
 Close = namedtuple("Close", "code reason")
 
@@ -89,6 +92,7 @@ class Server:
         self.players = {}
         self.grid = SpatialGrid(TILE_UNITS)
         self.next_player_id = 1
+        self.sessions = {}  # player_id -> token: who may take that player back after a lost connection (8.4). A player's pixels stay in the world while they are away.
         self.tasks = set()
 
     async def run(self):
@@ -206,15 +210,51 @@ class Server:
             self.reject(client, proto.BAD_MESSAGE, "already joined")
         elif message["protocol"] != proto.PROTOCOL_VERSION:
             self.reject(client, proto.BAD_PROTOCOL, f"server speaks protocol {proto.PROTOCOL_VERSION}, you sent {message['protocol']}")
+        elif "player_id" in message:
+            self.handle_rejoin(client, message)
         elif len(self.players) >= self.max_players:
             self.reject(client, proto.SERVER_FULL, f"server is full ({self.max_players} players)", TRY_AGAIN_LATER)
         else:
-            client.player_id = self.next_player_id
+            player_id = self.next_player_id
             self.next_player_id += 1
-            client.name = clean_name(message["name"]) or f"player{client.player_id}"
-            self.players[client.player_id] = client
-            self.send(client, proto.welcome(client.player_id, self.sim.seed, asdict(self.sim.generation_settings), self.sim.world.generation_checksum, self.sim.tick, TICK_RATE))
-            print(f"[server] player {client.player_id} '{client.name}' joined ({len(self.players)}/{self.max_players})")
+            self.sessions[player_id] = secrets.token_hex(16)
+            self.admit(client, player_id, clean_name(message["name"]) or f"player{player_id}", resumed=False)
+
+    def handle_rejoin(self, client, message):
+        """8.4: a client that lost its connection comes back as the same player.
+
+        It must send the player_id AND the token from its first welcome (the id alone would let anyone take over a player).
+        It gets a fresh welcome and a fresh Client here, so everything (terrain, own and nearby pixels) is sent again from scratch:
+        the server never assumes the new connection remembers anything the old one was told. If the old connection is still
+        registered (the server has not noticed it died yet) it is replaced.
+        """
+        player_id = message["player_id"]
+        token = self.sessions.get(player_id)
+
+        if token is None or not hmac.compare_digest(token.encode(), message["token"].encode()):
+            self.reject(client, proto.UNKNOWN_SESSION, "unknown player or wrong token: join as a new player")
+            return
+
+        old = self.players.get(player_id)
+
+        if old is None and len(self.players) >= self.max_players:
+            self.reject(client, proto.SERVER_FULL, f"server is full ({self.max_players} players)", TRY_AGAIN_LATER)
+            return
+
+        if old is not None:
+            self.players.pop(player_id)
+            old.closing = True
+            self.spawn(old.websocket.close(CLOSE_REPLACED, "replaced by a newer connection"))
+
+        name = clean_name(message["name"]) or (old.name if old is not None else "") or f"player{player_id}"
+        self.admit(client, player_id, name, resumed=True)
+
+    def admit(self, client, player_id, name, resumed):
+        client.player_id = player_id
+        client.name = name
+        self.players[player_id] = client
+        self.send(client, proto.welcome(player_id, self.sim.seed, asdict(self.sim.generation_settings), self.sim.world.generation_checksum, self.sim.tick, TICK_RATE, self.sessions[player_id], resumed))
+        print(f"[server] player {player_id} '{client.name}' {'rejoined' if resumed else 'joined'} ({len(self.players)}/{self.max_players})")
 
     def handle_view(self, client, message):
         """Remember the part of the world the player's camera shows. A bad rectangle is ignored (the old one stays)."""
@@ -271,7 +311,8 @@ class Server:
     def disconnect(self, client):
         client.closing = True
 
-        if client.player_id is not None and self.players.pop(client.player_id, None) is not None:
+        if client.player_id is not None and self.players.get(client.player_id) is client:
+            del self.players[client.player_id]
             print(f"[server] player {client.player_id} '{client.name}' left ({len(self.players)}/{self.max_players})")
 
     def send(self, client, message):

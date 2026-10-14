@@ -57,6 +57,7 @@ class Client:
         self.state = IDLE
         self.error = None
         self.welcome = None
+        self.session = None  # (player_id, token) from the first welcome: what reconnect() uses to take the same player back (8.4)
         self.generator = None
         self.world = None
         self.entities = {}  # the pixels this client knows, id -> ReplicatedEntity: added on enter, patched on update, removed on leave
@@ -78,6 +79,41 @@ class Client:
         if self.state != IDLE:
             raise RuntimeError("client was already started")
 
+        self.state = CONNECTING
+        self.thread = threading.Thread(target=self.run, name="client-network", daemon=True)
+        self.thread.start()
+
+    def reconnect(self):
+        """Rejoin as the same player after the connection was lost (state CLOSED, or FAILED after having joined once). Returns immediately, like start().
+
+        Everything the old connection taught the client (pixels, smoothing clock, pending events, world) is thrown away: the server sends a
+        fresh welcome and then the terrain and pixels near the player again, and the world is generated again, because tile changes that
+        happened while away in places that are no longer near would otherwise stay missing. If the server no longer knows the player
+        (it restarted) the client goes to FAILED with code unknown_session and the session is forgotten: start a new Client to join as a new player.
+        """
+        if self.session is None:
+            raise RuntimeError("nothing to reconnect to: this client never joined")
+
+        if self.state not in (CLOSED, FAILED):
+            raise RuntimeError("the client is still connected")
+
+        if self.thread is not None:
+            self.thread.join(timeout=2.0)
+
+        self.closing = False
+        self.error = None
+        self.welcome = None
+        self.generator = None
+        self.world = None
+        self.tiles = None
+        self.changed_tiles = []
+        self.skipped_deltas = 0
+        self.entities = {}
+        self.clock = None
+        self.pending_transient_events = []
+        self.pixel_stats = Stats()
+        self.inbox = queue.Queue()
+        self.done = threading.Event()
         self.state = CONNECTING
         self.thread = threading.Thread(target=self.run, name="client-network", daemon=True)
         self.thread.start()
@@ -251,10 +287,14 @@ class Client:
                 self.finish(CLOSED)
                 return
 
-            self.ws.send(proto.encode(proto.join(self.name)))
+            join = proto.join(self.name, *self.session) if self.session else proto.join(self.name)
+            self.ws.send(proto.encode(join))
             first = self.receive(self.timeout)
 
             if first["type"] == proto.ERROR:
+                if first["code"] == proto.UNKNOWN_SESSION:
+                    self.session = None
+
                 self.finish(FAILED, f"server refused the join: {first['message']} ({first['code']})")
                 return
 
@@ -263,6 +303,7 @@ class Client:
                 return
 
             self.welcome = first
+            self.session = (first["player_id"], first["token"])
             self.state = GENERATING
             problem = self.sync_world(first)
 

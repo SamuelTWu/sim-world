@@ -9,13 +9,13 @@ Rules:
 - Optional fields are left out when empty, so read them with .get(key, default).
 - Pixel positions are small ints (POSITION_SCALE). Bump PROTOCOL_VERSION whenever a message changes shape.
 
-Client -> server: join, command, view
+Client -> server: join (new player, or rejoin with player_id + token), command, view
 Server -> client: welcome, tick_update, world_delta, entity_info, command_result, order_failed, error
 """
 import msgpack
 from msgpack.exceptions import UnpackException
 
-PROTOCOL_VERSION = 6
+PROTOCOL_VERSION = 7
 MAX_MESSAGE_BYTES = 1_000_000
 
 # Pixel positions travel as whole numbers of 1/POSITION_SCALE world units ("x": 4400 means 1100.0). A 64-bit float costs 9 bytes
@@ -48,6 +48,7 @@ BAD_MESSAGE = "bad_message"
 BAD_PROTOCOL = "bad_protocol"
 NOT_JOINED = "not_joined"
 SERVER_FULL = "server_full"
+UNKNOWN_SESSION = "unknown_session"
 COMMAND_REJECTED = "command_rejected"
 
 CLIENT_TYPES = frozenset({JOIN, COMMAND, VIEW})
@@ -55,8 +56,8 @@ SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ENTITY_INFO, COMMAN
 
 # type -> (required fields, optional fields), each as {field: python type}
 SCHEMAS = {
-    JOIN: ({"name": str, "protocol": int}, {}),
-    WELCOME: ({"player_id": int, "seed": int, "settings": dict, "checksum": str, "tick": int, "tick_rate": int}, {}),
+    JOIN: ({"name": str, "protocol": int}, {"player_id": int, "token": str}),
+    WELCOME: ({"player_id": int, "seed": int, "settings": dict, "checksum": str, "tick": int, "tick_rate": int, "token": str}, {"resumed": bool}),
     COMMAND: ({"seq": int, "name": str, "args": dict}, {}),
     VIEW: ({"rect": list}, {}),
     TICK_UPDATE: ({"tick": int}, {"enter": list, "update": list, "leave": list, "events": list, "ack": int}),
@@ -72,12 +73,25 @@ class ProtocolError(Exception):
     """A message is malformed, the wrong type for its sender, or too large."""
 
 
-def join(name):
-    return {"type": JOIN, "name": name, "protocol": PROTOCOL_VERSION}
+def join(name, player_id=None, token=None):
+    """Join as a new player, or (with the player_id and token from an earlier welcome) take your old player back after a lost connection (8.4)."""
+    message = {"type": JOIN, "name": name, "protocol": PROTOCOL_VERSION}
+
+    if player_id is not None:
+        message["player_id"] = player_id
+        message["token"] = token if token is not None else ""
+
+    return message
 
 
-def welcome(player_id, seed, settings, checksum, tick, tick_rate):
-    return {"type": WELCOME, "player_id": player_id, "seed": seed, "settings": settings, "checksum": checksum, "tick": tick, "tick_rate": tick_rate}
+def welcome(player_id, seed, settings, checksum, tick, tick_rate, token, resumed=False):
+    """`token` is the secret that proves a later join is the same player; keep it and never show it to anyone else. `resumed` is True when this welcome answers a rejoin."""
+    message = {"type": WELCOME, "player_id": player_id, "seed": seed, "settings": settings, "checksum": checksum, "tick": tick, "tick_rate": tick_rate, "token": token}
+
+    if resumed:
+        message["resumed"] = True
+
+    return message
 
 
 def command(seq, name, args=None):

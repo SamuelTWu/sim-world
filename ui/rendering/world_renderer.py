@@ -1,7 +1,10 @@
+import os
 import pygame
 
 
 class WorldRenderer:
+    SPRITE_DIR = "ui/sprites"
+
     def __init__(self, screen, camera, font, tile_size):
         self.screen = screen
         self.camera = camera
@@ -11,6 +14,8 @@ class WorldRenderer:
         self.world_surface = None
         self.cached_world = None
         self.debug_feature_colors = {}
+        self.images = {}
+        self.scaled_images = {}
 
     def render_world(self, world):
         if self.cached_world is not world:
@@ -28,6 +33,13 @@ class WorldRenderer:
             scaled = pygame.transform.scale(visible, (max(1, round(columns * tile_size)), max(1, round(rows * tile_size))))
             self.screen.blit(scaled, self.camera.world_to_screen(min_x * self.TILE_SIZE, min_y * self.TILE_SIZE))
 
+            for y in range(min_y, max_y + 1):
+                for x in range(min_x, max_x + 1):
+                    tile = world.get_tile(x, y)
+                    if tile and getattr(tile, "sprite_id", None):
+                        screen_x, screen_y = self.camera.world_to_screen(x * self.TILE_SIZE, y * self.TILE_SIZE)
+                        self.draw_sprite(tile.sprite_id, screen_x, screen_y, tile_size)
+
         self.camera.draw_hovered_tile_name(self.screen, world, self.font)
 
     def build_world_surface(self, world):
@@ -39,6 +51,34 @@ class WorldRenderer:
                 surface.set_at((x, y), tile.color if tile else (0, 0, 0))
 
         return surface
+
+    def draw_sprite(self, name, x, y, size):
+        key = (name, size)
+
+        if key not in self.scaled_images:
+            image = self.load_image(name)
+            if image is None:
+                return False
+
+            self.trim_cache(self.scaled_images)
+            self.scaled_images[key] = pygame.transform.scale(image, (size, size))
+
+        self.screen.blit(self.scaled_images[key], (x, y))
+        return True
+
+    def load_image(self, name):
+        if name not in self.images:
+            try:
+                self.images[name] = pygame.image.load(os.path.join(self.SPRITE_DIR, name)).convert_alpha()
+            except (pygame.error, FileNotFoundError):
+                self.images[name] = None
+
+        return self.images[name]
+
+    @staticmethod
+    def trim_cache(cache, limit=512):
+        if len(cache) >= limit:
+            cache.clear()
 
     def set_world_pixel(self, x, y, color):
         if self.world_surface is not None:
@@ -53,17 +93,14 @@ class WorldRenderer:
 
         tile_size = self.camera.scaled_tile_size
         min_x, max_x, min_y, max_y = self.camera.get_visible_tile_bounds(world)
+        min_x, max_x = max(0, min_x), min(world.width - 1, max_x)
+        min_y, max_y = max(0, min_y), min(world.height - 1, max_y)
         highlight_color = self.get_feature_color(feature_name)
 
         for y in range(min_y, max_y + 1):
             for x in range(min_x, max_x + 1):
                 influence = min(1.0, debug_data[y][x])
-
-                if influence <= 0:
-                    color = (20, 20, 20)
-                else:
-                    color = tuple(int(40 + (base - 40) * influence) for base in highlight_color)
-
+                color = (20, 20, 20) if influence <= 0 else tuple(int(40 + (base - 40) * influence) for base in highlight_color)
                 screen_x, screen_y = self.camera.world_to_screen(x * self.TILE_SIZE, y * self.TILE_SIZE)
                 pygame.draw.rect(self.screen, color, (screen_x, screen_y, tile_size, tile_size))
 
@@ -74,8 +111,8 @@ class WorldRenderer:
         min_x, max_x, min_y, max_y = self.camera.get_visible_tile_bounds(map_object)
         tile_size = self.camera.scaled_tile_size
 
-        for y in range(min_y, max_y + 1):
-            for x in range(min_x, max_x + 1):
+        for y in range(max(0, min_y), min(map_object.height - 1, max_y) + 1):
+            for x in range(max(0, min_x), min(map_object.width - 1, max_x) + 1):
                 value = max(0.0, min(1.0, map_object.get(x, y)))
                 color = int(value * 255)
                 screen_x, screen_y = self.camera.world_to_screen(x * self.TILE_SIZE, y * self.TILE_SIZE)

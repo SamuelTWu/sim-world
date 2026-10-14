@@ -12,6 +12,7 @@ class State(Enum):
 @dataclass
 class Tile:
     color: tuple[int, int, int] | list[tuple[int, int, int]] | tuple[tuple[int, int, int], tuple[int, int, int]]
+    sprite_id: str | None = None
 
     hardness: float = 0.0
     collision: float = 0.0

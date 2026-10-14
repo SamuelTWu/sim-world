@@ -21,6 +21,7 @@ class SimContext:
     tick: int = 0
     spawn: Any = None
     transient_events: Any = None  # TransientEventLog (transientEvents.py): things that are seen but are not pixels
+    activity: Any = None  # Activity (activity.py): which pixels get the expensive systems every tick (9.2)
     counters: Any = None  # Counters (counters.py): how much work was done, for the server's log (9.1)
 
     def __post_init__(self):

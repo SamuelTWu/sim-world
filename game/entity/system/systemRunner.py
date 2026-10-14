@@ -9,7 +9,8 @@ from .memorySystem import MemorySystem
 from .relationshipSystem import RelationshipSystem
 from .decisionSystem import DecisionSystem, Decision, Action
 from .eventBus import EventBus
-from .counters import Counters
+from .activity import Activity
+from .counters import Counters, count
 from .transientEvents import TransientEventLog
 from .simContext import SimContext
 from .stimulus import StimulusField
@@ -34,9 +35,10 @@ class SystemRunner:
         self.decision_system = DecisionSystem()
         self.events = EventBus()
         self.transient_events = TransientEventLog()  # shots, impacts: noted here, sent to players as events (transientEvents.py)
+        self.activity = Activity()  # near / far tiers for the expensive systems (activity.py); Simulation.step refreshes it every tick
         self.counters = Counters()  # work done this window (tile checks, attacks...), read by the server's metrics (9.1)
         self.order_notices = []  # orders that failed, for the server to tell the player (see orders.notify)
-        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng, transient_events=self.transient_events, counters=self.counters)
+        self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng, transient_events=self.transient_events, counters=self.counters, activity=self.activity)
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}
         self.think_timers: dict[int, float] = {}
@@ -137,6 +139,7 @@ class SystemRunner:
         return True
 
     def think(self, entity: Entity):
+        count(self.context, "thinks")
         if follow_orders(self, entity):
             return
 
@@ -175,24 +178,34 @@ class SystemRunner:
                 removed.task = None
 
             self.think_timers.pop(removed.id, None)
+            self.activity.forget(removed.id)
             self.memory_system.remove(removed)
             self.relationship_system.remove_entity(removed.id)
             self.events.emit("entity_removed", entity=removed)
 
     def update(self, delta_time: float):
+        """One tick. Aging, the current task and removal run for every pixel every tick; the needs, memory and thinking only when the
+        pixel is due (see activity.py): always for an ACTIVE pixel, once in a while, with all the time that passed, for a FAR one."""
         entities = self.entities()
+        activity = self.activity
+        tick = self.context.tick
+        due = []
 
         for entity in entities:
             self.age_entity(entity, delta_time)
-            self.need_system.update(entity, delta_time)
-            self.memory_system.update(entity, delta_time)
+            step = activity.due_dt(entity, tick, delta_time)
+            due.append(step)
+
+            if step is not None:
+                self.need_system.update(entity, step)
+                self.memory_system.update(entity, step)
 
         self.relationship_system.update(delta_time)
         self.context.territory.update(delta_time)
         self.context.stimuli.update(delta_time)
         self.events.emit("frame", delta_time=delta_time)
 
-        for entity in entities:
+        for entity, step in zip(entities, due):
             if not entity.alive:
                 continue
 
@@ -206,7 +219,9 @@ class SystemRunner:
             if snaps:
                 self.apply_snap(entity)
 
-            if entity.alive and self.should_think(entity, delta_time):
+            if step is None:
+                count(self.context, "think_deferred")
+            elif entity.alive and self.should_think(entity, step):
                 self.think(entity)
 
         self.cleanup_removed()

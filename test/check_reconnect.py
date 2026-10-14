@@ -96,7 +96,7 @@ sim = Simulation(GenerationSettings(width=200, height=200, seed=11))
 sim.start_new_game(11)
 factory = sim.entity_manager.entity_factory
 placeable = [path.stem for path in sorted(factory.definitions_path.glob("*.json")) if factory.load_definition(path.stem).get("placeable", True) is not False and path.stem != "resource_pile"]
-BLUEPRINT = next((name for name in ("pixel_runner", "pixel_commander", "pixel_swimmer") if name in placeable), placeable[0] if placeable else None)
+BLUEPRINT = next((name for name in ("runner", "commander", "swimmer") if name in placeable), placeable[0] if placeable else None)
 ok(BLUEPRINT is not None, "there is a placeable blueprint to test with")
 server = Server(sim, "127.0.0.1", PORT, max_players=3)
 loop = asyncio.new_event_loop()

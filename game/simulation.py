@@ -21,8 +21,8 @@ TICK_DT = 1.0 / TICK_RATE   # 0.05s
 class Simulation:
     def __init__(self, generation_settings=None):
         self.generation_settings = generation_settings or GenerationSettings(
-            width=100,
-            height=100,
+            width=500,
+            height=500,
             seed=None,
             debug=True,
             tag_modifiers={"all": {"scale": 1.3}},
@@ -68,8 +68,6 @@ class Simulation:
 
         self.systems.context.spawn = self.spawn_pixel
 
-    
-
     def spawn_pixel(self, definition, owner, x, y):
         """Create a pixel from a blueprint definition at (x, y) for an owner (a player id, or None) and record who owns it.
 
@@ -89,10 +87,30 @@ class Simulation:
     def owned_ids(self, player_id):
         return list(self.owned.get(player_id, ()))
 
+    def activity_anchors(self):
+        """Where the pixels that players own are, (x, y) each: what decides which parts of the world get the full simulation (entity/system/activity.py).
+
+        Only simulation state is used (not the cameras, not who is connected), so the same commands always give the same world.
+        """
+        anchors = []
+
+        for ids in self.owned.values():
+            for pixel_id in ids:
+                try:
+                    pixel = self.entity_manager.get(pixel_id)
+                except KeyError:
+                    continue
+
+                if pixel is not None and pixel.alive:
+                    anchors.append((pixel.position.x, pixel.position.y))
+
+        return anchors
+
     def step(self):
         """Advance the simulation by exactly one fixed tick (TICK_DT seconds)."""
         if self.world is None:
             return
+        self.systems.activity.refresh(self.activity_anchors())
         self.systems.update(TICK_DT)
         self.world.update(TICK_DT)
         self.tick += 1

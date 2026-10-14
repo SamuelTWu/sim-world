@@ -8,7 +8,7 @@ Per window it reports:
   tick time: average, 95th percentile, max, and the budget; overruns (ticks whose work took longer than the budget); behind resets
              (the loop was so late it gave up catching up, see MAX_BEHIND in server.py)
   phases:    where the time went (inbox, step, grid, notices, replicate): the average ms per tick of each part of a tick
-  pixels / projectiles: how many are active now (a projectile system does not exist yet, so 0 until it registers `systems.projectiles`)
+  pixels / projectiles: how many pixels get the full simulation every tick (of how many exist, 9.2); how many projectiles are active (a projectile system does not exist yet, so 0 until it registers `systems.projectiles`)
   counters:  work done per second, from entity/system/counters.py (tile_checks, blocked_moves, attacks, and what is added later)
   network:   bytes per second sent in total, by message type, and per client (with messages per second, the largest outbox backlog seen, and the
              size of the biggest single message)
@@ -68,7 +68,7 @@ class Metrics:
         entry["backlog"] = max(entry["backlog"], backlog)
         entry["biggest"] = max(entry["biggest"], nbytes)
 
-    def snapshot(self, now, pixels=0, projectiles=0, counters=None, players=0, tick=0):
+    def snapshot(self, now, pixels=0, projectiles=0, counters=None, players=0, tick=0, pixels_total=None):
         """The finished window as a dict, then start the next one. Rates are per second over the real length of the window."""
         seconds = max(now - self.window_start, 1e-9)
         ticks = len(self.durations)
@@ -80,6 +80,7 @@ class Metrics:
             "seconds": seconds,
             "players": players,
             "pixels": pixels,
+            "pixels_total": pixels if pixels_total is None else pixels_total,
             "projectiles": projectiles,
             "ticks": ticks,
             "tick_ms": {"avg": average * 1000, "p95": p95 * 1000, "max": (ordered[-1] if ticks else 0.0) * 1000, "budget": self.budget * 1000},
@@ -107,8 +108,10 @@ def kb(value):
 def format_lines(snap):
     """The log lines for one snapshot (without the "[server]" prefix)."""
     tick = snap["tick_ms"]
+    total = snap.get("pixels_total", snap["pixels"])
+    pixel_note = f" of {total} (far {total - snap['pixels']})" if total != snap["pixels"] else ""
     lines = [
-        f"tick {snap['tick']} | players {snap['players']} | active pixels {snap['pixels']} | active projectiles {snap['projectiles']}",
+        f"tick {snap['tick']} | players {snap['players']} | active pixels {snap['pixels']}{pixel_note} | active projectiles {snap['projectiles']}",
         f"  tick ms: avg {tick['avg']:.1f}, p95 {tick['p95']:.1f}, max {tick['max']:.1f} (budget {tick['budget']:.0f}) | overruns {snap['overruns']}/{snap['ticks']} | behind resets {snap['behind_resets']}",
         "  phases ms/tick: " + " ".join(f"{name} {value:.2f}" for name, value in snap["phase_ms"].items()),
     ]

@@ -80,7 +80,7 @@ sim.start_new_game(11)
 factory = sim.entity_manager.entity_factory
 names = sorted(path.stem for path in factory.definitions_path.glob("*.json"))
 placeable = [name for name in names if factory.load_definition(name).get("placeable", True) is not False and name != "resource_pile"]
-BLUEPRINT = next((name for name in ("pixel_runner", "pixel_commander", "pixel_swimmer") if name in placeable), placeable[0] if placeable else None)
+BLUEPRINT = next((name for name in ("runner", "commander", "swimmer") if name in placeable), placeable[0] if placeable else None)
 print(f"blueprints in {factory.definitions_path}: {names}; placing '{BLUEPRINT}'")
 ok(BLUEPRINT is not None, "there is a placeable blueprint to test with")
 server = Server(sim, "127.0.0.1", PORT, max_players=4)

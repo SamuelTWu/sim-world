@@ -69,6 +69,17 @@ ok("active pixels 42" in text and "active projectiles 3" in text and "overruns 2
 ok("tile_checks 100" in text and "tick_update" in text and "client 1 'alice'" in text and "client 2 'bob'" in text, "the log shows counters, message types and clients")
 ok(lines[0].startswith("tick 777") and all(not line.startswith("[server]") for line in lines), "format_lines returns bare lines (the server adds the prefix)")
 
+n = Metrics(0.05)
+n.tick(0.01)
+text = "\n".join(format_lines(n.snapshot(n.window_start + 5.0, pixels=42, pixels_total=420)))
+ok("active pixels 42 of 420 (far 378)" in text, "when only some pixels get the full simulation the log says how many exist and how many are far (9.2)")
+n = Metrics(0.05)
+n.tick(0.01)
+ok("active pixels 7 |" in "\n".join(format_lines(n.snapshot(n.window_start + 5.0, pixels=7, pixels_total=7))), "with no far pixels the log stays as it was")
+n = Metrics(0.05)
+n.tick(0.01)
+ok(n.snapshot(n.window_start + 1.0, pixels=3)["pixels_total"] == 3, "pixels_total defaults to the active count")
+
 # the next window starts clean
 snap2 = m.snapshot(m.window_start + 5.0)
 ok(snap2["ticks"] == 0 and snap2["overruns"] == 0 and snap2["clients"] == [] and snap2["bytes_per_s"] == 0.0 and snap2["tick_ms"]["avg"] == 0.0, "an empty window reports zeros and does not divide by zero")
@@ -128,7 +139,7 @@ sim = Simulation(GenerationSettings(width=120, height=120, seed=5))
 sim.start_new_game(5)
 factory = sim.entity_manager.entity_factory
 placeable = [path.stem for path in sorted(factory.definitions_path.glob("*.json")) if factory.load_definition(path.stem).get("placeable", True) is not False and path.stem != "resource_pile"]
-BLUEPRINT = next((name for name in ("pixel_runner", "pixel_commander", "pixel_swimmer") if name in placeable), placeable[0] if placeable else None)
+BLUEPRINT = next((name for name in ("runner", "commander", "swimmer") if name in placeable), placeable[0] if placeable else None)
 ok(BLUEPRINT is not None, "there is a placeable blueprint to test with")
 server = Server(sim, "127.0.0.1", PORT, max_players=4, stats_interval=0.6)
 lines = []                      # what the server logs

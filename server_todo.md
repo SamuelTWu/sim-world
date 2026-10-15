@@ -125,7 +125,7 @@ maximize server capacity without sacrificing deterministic simulation or emergen
 - [X] 9.1 Log tick duration, tick overruns, bytes sent per client, active pixels, active projectiles, and collision counts every few seconds.
 - [X] 9.2 Only run expensive simulation systems in relevant active regions. Preserve correct cross-chunk movement, projectile travel, and interactions. Do not unload or freeze authoritative state merely because no client currently sees it.
 - [X] 9.3 Sleep idle pixels. Wake them on relevant events, nearby changes, commands, or scheduled updates.
-- [ ] 9.4 Use tiered think rates for noncritical AI and needs systems. Keep collision and other time-sensitive gameplay checks sufficiently frequent.
+- [X] 9.4 Use tiered think rates for noncritical AI and needs systems. Keep collision and other time-sensitive gameplay checks sufficiently frequent.
 - [ ] 9.5 If profiling identifies bulk movement as a bottleneck, use persistent structure-of-arrays storage or vectorized operations for homogeneous pixels/projectiles. Avoid rebuilding arrays every tick.
 - [ ] 9.6 Use cheap rules for simple pixels rather than invoking a full decision system unnecessarily.
 - [ ] 9.7 If still too slow, profile with `cProfile` and consider Numba, Cython, or other compiled hot loops.

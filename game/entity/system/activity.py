@@ -21,6 +21,18 @@ it still ages, keeps every bit of its state, and stays in the world. It wakes (a
     reported is noticed within about two seconds. `schedule_wake(id, tick)` pulls that time forward for anything that must happen at a known time.
 Cheap bookkeeping: sleepers are indexed by cell, and only pixels that have a task (and new pixels) are checked for changing cell.
 
+RATES (9.4): the near/far/sleep rules above are applied PER SYSTEM KEY, and which keys are "noncritical" is a table you edit (`RATES`, or
+`activity.set_rate(...)`, or `--rate` on the server, or a pixel's own `"rates"` trait). This module does not decide what is critical:
+  - a key that is not in the table is critical: it runs every tick for every pixel (stride 1), whatever the tier, and never sleeps;
+  - a key in the table has `near` (stride for ACTIVE pixels), `far` (stride for FAR pixels; None = FAR_STRIDE) and `sleeps` (skipped while the pixel
+    sleeps); a stride of N means once in N ticks, staggered by pixel id, handed all the time that passed (so the total time is never lost);
+  - no stride can exceed MAX_STRIDE (1 second), so nothing can be starved;
+  - a pixel can override any key for itself: blueprint "traits": {"rates": {"needs": {"far": 1}, "think": {"near": 1, "far": 4, "sleeps": false}}}.
+Keys used by SystemRunner.update today: per pixel "needs", "memory", "think"; whole-world "relationships", "territory", "stimuli" (`global_due`).
+Any system you add can use its own key: `state = activity.state(entity, tick)` once per pixel per tick, then `activity.due("mykey", entity, state, dt, tick)`.
+What is NOT tiered, ever: aging and statuses, running a pixel's task (walking, attacking and the terrain/collision tests inside it), events, removal,
+orders, projectiles. Those stay exact every tick.
+
 Anything that MOVES things on its own (a future projectile system) must not ask this module: it steps everything it owns every tick.
 
 Until `refresh()` is first called (Simulation.step does it) everything is ACTIVE, so tools that call SystemRunner.update directly are unchanged.
@@ -36,6 +48,30 @@ IDLE_THINKS = 3  # consecutive thinks that find nothing to do before a pixel fal
 SLEEP_TICKS = 40  # a sleeping pixel wakes by itself after this many ticks (2 seconds) to look around again; 0 turns sleeping off
 SLEEP_SPREAD = 10  # plus up to this many ticks, by pixel id, so sleepers do not all wake on the same tick
 WAKE_CELL_TILES = 4  # a change wakes the sleepers in its cell and the 8 around it (cells are this many tiles wide)
+MAX_STRIDE = 20  # no system may go longer than this many ticks (1 second) between runs, whatever the table or a pixel says
+
+# Which systems may run less often, and how. EDIT THIS TABLE to decide what is noncritical; a key that is not here runs every tick.
+#   key: (near stride, far stride or None for FAR_STRIDE, sleeps)
+RATES = {
+    "needs": (1, None, True),
+    "memory": (1, None, True),
+    "think": (1, None, True),
+}
+
+
+class Rate:
+    __slots__ = ("near", "far", "sleeps")
+
+    def __init__(self, near=1, far=None, sleeps=True):
+        self.near = max(1, min(MAX_STRIDE, int(near)))
+        self.far = None if far is None else max(1, min(MAX_STRIDE, int(far)))
+        self.sleeps = bool(sleeps)
+
+
+CRITICAL = Rate(1, 1, False)
+
+# what state() returns
+ACTIVE, FAR, ASLEEP, WAKING = 0, 1, 2, 3
 
 
 class Activity:
@@ -47,7 +83,11 @@ class Activity:
         self.anchor_chunks = frozenset()
         self.near = set()  # chunk coordinates that are ACTIVE
         self.awake = {}  # pixel id -> tick until which it is ACTIVE
-        self.owed = {}  # far pixel id -> time that passed since its expensive systems last ran
+        self.rates = {key: Rate(*spec) for key, spec in RATES.items()}
+        self.owed = {}  # system key -> {pixel id: time that passed since that system last ran for the pixel}
+        self.global_owed = {}  # whole-world system key -> time that passed since it last ran
+        self.ran = {}  # system key -> how many pixel runs this tick / skipped (flushed to the counters by refresh)
+        self.skipped = {}
         self.active_now = 0  # pixels that were ACTIVE in the latest tick (set by due_dt)
         self.far_now = 0
         self.last_active = 0  # the totals of the latest finished tick, for the server's log
@@ -90,6 +130,7 @@ class Activity:
     def refresh(self, anchors):
         """Call once per tick before the pixels are updated. `anchors` are (x, y) world positions of the pixels that make their surroundings relevant."""
         self.enabled = True
+        self.flush_counts()
         self.last_active, self.last_far, self.last_asleep = self.active_now, self.far_now, self.asleep_now
         self.active_now = self.far_now = self.asleep_now = 0
         chunks = frozenset(chunk_of_point(x, y, self.tile_units) for x, y in anchors)
@@ -115,39 +156,131 @@ class Activity:
 
         return chunk_of_point(entity.position.x, entity.position.y, self.tile_units) in self.near
 
-    def due_dt(self, entity, tick, delta_time):
-        """The time the expensive systems should advance by for this pixel this tick, or None to skip them this tick (a far pixel between its turns).
-
-        An ACTIVE pixel gets exactly `delta_time` (plus anything it still owed from when it was far). A far pixel collects the time and gets it all
-        at once on its turn, so the total time its needs and memory see is the same as if it had run every tick.
-        """
+    def state(self, entity, tick):
+        """Where this pixel stands this tick: ACTIVE, FAR, ASLEEP or WAKING (its scheduled wake time has just come). Call once per pixel per tick."""
         until = self.sleeping.get(entity.id)
 
         if until is not None:
             if tick < until:
                 self.asleep_now += 1
-                self.owed[entity.id] = self.owed.get(entity.id, 0.0) + delta_time
-                return None
+                return ASLEEP
 
             self.remove_sleeper(entity.id)  # its scheduled time: it wakes by itself and looks around
             self.count("wakes")
             self.idle[entity.id] = self.idle_thinks - 1  # one more think that finds nothing and it goes back to sleep
-            return self.owed.pop(entity.id, 0.0) + delta_time
+            self.active_now += 1
+            return WAKING
 
         if self.is_active(entity, tick):
             self.active_now += 1
-            owed = self.owed.pop(entity.id, 0.0)
-            return delta_time + owed if owed else delta_time
+            return ACTIVE
 
         self.far_now += 1
-        owed = self.owed.get(entity.id, 0.0) + delta_time
+        return FAR
 
-        if (tick + entity.id) % self.far_stride == 0:
-            self.owed.pop(entity.id, None)
+    def rate_of(self, key, entity=None):
+        """The Rate for a system key (CRITICAL if it is not in the table), with the pixel's own "rates" trait applied."""
+        rate = self.rates.get(key, CRITICAL)
+        traits = getattr(entity, "traits", None)
+        mine = traits.get("rates") if traits else None
+        override = mine.get(key) if isinstance(mine, dict) else None
+
+        if isinstance(override, dict):
+            return Rate(override.get("near", rate.near), override.get("far", rate.far), override.get("sleeps", rate.sleeps))
+
+        return rate
+
+    def due(self, key, entity, state, delta_time, tick):
+        """The time system `key` should advance by for this pixel this tick, or None to skip it this tick.
+
+        Stride 1 (the default for any key that is not in RATES) always returns `delta_time` (plus any time still owed). A larger stride collects
+        the time and hands it all over on the pixel's turn (once in `stride` ticks, staggered by id), so the total time is never lost.
+        A sleeping pixel is skipped by every key that `sleeps`; a pixel that just woke is handed everything at once.
+        """
+        if not self.enabled:
+            return delta_time
+
+        rate = self.rate_of(key, entity)
+        bucket = self.owed.get(key)
+
+        if bucket is None:
+            bucket = self.owed[key] = {}
+
+        if state == WAKING:
+            owed = bucket.pop(entity.id, 0.0)
+            self.ran[key] = self.ran.get(key, 0) + 1
+            return delta_time + owed if owed else delta_time
+
+        if state == ASLEEP:
+            if rate.sleeps:
+                bucket[entity.id] = bucket.get(entity.id, 0.0) + delta_time
+                self.skipped[key] = self.skipped.get(key, 0) + 1
+                return None
+
+            far = not self.is_active(entity, tick)  # a system that does not sleep keeps its normal rate
+        else:
+            far = state == FAR
+
+        stride = (rate.far if rate.far is not None else self.far_stride) if far else rate.near
+        stride = max(1, min(MAX_STRIDE, stride))
+
+        if stride == 1 or (tick + entity.id) % stride == 0:
+            owed = bucket.pop(entity.id, 0.0) if bucket else 0.0
+            self.ran[key] = self.ran.get(key, 0) + 1
+            return delta_time + owed if owed else delta_time
+
+        bucket[entity.id] = bucket.get(entity.id, 0.0) + delta_time
+        self.skipped[key] = self.skipped.get(key, 0) + 1
+        return None
+
+    def due_dt(self, entity, tick, delta_time):
+        """state() and due() in one call, for the "think" key (what 9.2 and 9.3 were written against)."""
+        return self.due("think", entity, self.state(entity, tick), delta_time, tick)
+
+    def global_due(self, key, tick, delta_time):
+        """For a system that works on the whole world (relationships, territory, stimuli): the time to advance it by, or None to skip this tick.
+
+        Only `near` counts (a whole-world system has no far); a key that is not in RATES runs every tick.
+        """
+        rate = self.rates.get(key)
+
+        if rate is None or rate.near <= 1 or not self.enabled:
+            return delta_time
+
+        owed = self.global_owed.get(key, 0.0) + delta_time
+
+        if tick % rate.near == 0:
+            self.global_owed.pop(key, None)
             return owed
 
-        self.owed[entity.id] = owed
+        self.global_owed[key] = owed
         return None
+
+    def set_rate(self, key, near=None, far=None, sleeps=None):
+        """Decide how a system runs (see the table RATES). Leave an argument None to keep the current value; a new key starts from near 1, far FAR_STRIDE, sleeps."""
+        current = self.rates.get(key) or Rate()
+        self.rates[key] = Rate(current.near if near is None else near, current.far if far is None else far, current.sleeps if sleeps is None else sleeps)
+
+    def critical(self, key):
+        """Make a system run every tick for every pixel again."""
+        self.rates.pop(key, None)
+
+    def owed_for(self, pixel_id):
+        """The time still owed to a pixel by all systems together (0.0 when nothing is held back)."""
+        return sum(bucket.get(pixel_id, 0.0) for bucket in self.owed.values())
+
+    def flush_counts(self):
+        counters = self.counters
+
+        if counters is not None:
+            for key, amount in self.ran.items():
+                counters.add(f"{key}_runs", amount)
+
+            for key, amount in self.skipped.items():
+                counters.add(f"{key}_skips", amount)
+
+        self.ran.clear()
+        self.skipped.clear()
 
     def wake(self, entity, tick, ticks=WAKE_TICKS):
         """Something happened to this pixel: wake it if it sleeps, and keep it ACTIVE for `ticks` even if it is far."""
@@ -159,7 +292,10 @@ class Activity:
 
     def forget(self, entity_id):
         self.awake.pop(entity_id, None)
-        self.owed.pop(entity_id, None)
+
+        for bucket in self.owed.values():
+            bucket.pop(entity_id, None)
+
         self.idle.pop(entity_id, None)
         self.cell_of.pop(entity_id, None)
 

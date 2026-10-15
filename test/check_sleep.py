@@ -63,7 +63,7 @@ wake_at = a.sleeping[p.id]
 got = [a.due_dt(p, tick, TICK_DT) for tick in range(8, wake_at)]
 ok(all(step is None for step in got) and a.asleep_now == len(got), "while asleep the expensive systems are skipped")
 step = a.due_dt(p, wake_at, TICK_DT)
-ok(near(step, (wake_at - 8 + 1) * TICK_DT, 1e-9) and p.id not in a.sleeping and p.id not in a.sleepers and p.id not in a.owed, "at its scheduled time it wakes and is handed all the time that passed")
+ok(near(step, (wake_at - 8 + 1) * TICK_DT, 1e-9) and p.id not in a.sleeping and p.id not in a.sleepers and a.owed_for(p.id) == 0.0, "at its scheduled time it wakes and is handed all the time that passed")
 ok(a.counters.values.get("wakes") == 1, "a wake is counted")
 ok(a.idle[p.id] == IDLE_THINKS - 1, "after its scheduled wake one more think that finds nothing sends it back to sleep")
 ok(a.due_dt(p, wake_at + 1, TICK_DT) == TICK_DT, "and until then it is an ordinary pixel")

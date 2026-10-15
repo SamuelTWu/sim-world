@@ -185,28 +185,47 @@ class SystemRunner:
             self.events.emit("entity_removed", entity=removed)
 
     def update(self, delta_time: float):
-        """One tick. Aging, the current task and removal run for every pixel every tick; the needs, memory and thinking only when the
-        pixel is due (see activity.py): always for an ACTIVE pixel, once in a while, with all the time that passed, for a FAR one."""
+        """One tick. Aging, the current task (with its terrain and collision tests) and removal run for every pixel every tick, always. The
+        needs, memory and thinking of a pixel, and the relationships, territory and stimuli of the world, run at the rates in activity.RATES
+        (every tick unless the table says otherwise), with all the time that passed handed over when they do."""
         entities = self.entities()
         activity = self.activity
         tick = self.context.tick
-        due = []
+        thinks = []
 
         for entity in entities:
             self.age_entity(entity, delta_time)
-            step = activity.due_dt(entity, tick, delta_time)
-            due.append(step)
+            state = activity.state(entity, tick)
+            step = activity.due("needs", entity, state, delta_time, tick)
 
             if step is not None:
                 self.need_system.update(entity, step)
+
+            step = activity.due("memory", entity, state, delta_time, tick)
+
+            if step is not None:
                 self.memory_system.update(entity, step)
 
-        self.relationship_system.update(delta_time)
-        self.context.territory.update(delta_time)
-        self.context.stimuli.update(delta_time)
+            thinks.append(activity.due("think", entity, state, delta_time, tick))
+
+        step = activity.global_due("relationships", tick, delta_time)
+
+        if step is not None:
+            self.relationship_system.update(step)
+
+        step = activity.global_due("territory", tick, delta_time)
+
+        if step is not None:
+            self.context.territory.update(step)
+
+        step = activity.global_due("stimuli", tick, delta_time)
+
+        if step is not None:
+            self.context.stimuli.update(step)
+
         self.events.emit("frame", delta_time=delta_time)
 
-        for entity, step in zip(entities, due):
+        for entity, step in zip(entities, thinks):
             if not entity.alive:
                 continue
 

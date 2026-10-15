@@ -9,7 +9,7 @@ Client, the inbox, and its own websocket. Sending is queued per client, so a slo
 never stall the tick loop.
 
 Run from the project root:
-    python -m server.server [--host 0.0.0.0] [--port 8765] [--seed N] [--max-players N] [--stats-interval SECONDS] [--active-chunks N] [--far-stride N] [--sleep-ticks N]
+    python -m server.server [--host 0.0.0.0] [--port 8765] [--seed N] [--max-players N] [--stats-interval SECONDS] [--active-chunks N] [--far-stride N] [--sleep-ticks N] [--rate KEY=NEAR[,FAR]]...
 """
 import argparse
 import asyncio
@@ -441,6 +441,7 @@ def main():
     parser.add_argument("--stats-interval", type=float, default=STATS_INTERVAL, help="seconds between the performance log lines (0 = off)")
     parser.add_argument("--active-chunks", type=int, default=None, help="pixels within this many chunks of a pixel a player owns get the full simulation every tick (0 = every pixel does)")
     parser.add_argument("--far-stride", type=int, default=None, help="other pixels run needs, memory and decisions once in this many ticks (1 = every tick)")
+    parser.add_argument("--rate", action="append", default=[], metavar="KEY=NEAR[,FAR]", help="run system KEY once in NEAR ticks (and once in FAR ticks when far), e.g. --rate needs=2,10 --rate think=1,4; keys not listed run every tick; repeatable")
     parser.add_argument("--sleep-ticks", type=int, default=None, help="an idle pixel sleeps and looks around again after this many ticks (0 = pixels never sleep)")
     parser.add_argument("--watch-stdin", action="store_true", help="exit when stdin closes (used by the single-player launcher)")
     args = parser.parse_args()
@@ -458,6 +459,16 @@ def main():
 
     sim.start_new_game(args.seed)
     sim.systems.activity.configure(args.active_chunks, args.far_stride, args.sleep_ticks)
+
+    for spec in args.rate:
+        try:
+            key, strides = spec.split("=", 1)
+            parts = [int(part) for part in strides.split(",")]
+            assert key and 1 <= len(parts) <= 2
+        except (ValueError, AssertionError):
+            parser.error(f"--rate wants KEY=NEAR or KEY=NEAR,FAR (whole numbers), not {spec!r}")
+
+        sim.systems.activity.set_rate(key, near=parts[0], far=parts[1] if len(parts) == 2 else None)
 
     try:
         asyncio.run(Server(sim, args.host, args.port, args.max_players, args.stats_interval).run())

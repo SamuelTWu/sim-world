@@ -86,7 +86,7 @@ while a.due_dt(p, tick, TICK_DT) is None:
 a.due_dt(p, tick + 1, TICK_DT)          # skipped (not its turn)
 a.refresh([(CHUNK * 50, CHUNK * 50)])   # a player's pixel arrives
 step = a.due_dt(p, tick + 2, TICK_DT)
-ok(near(step, TICK_DT * 2, 1e-9) and p.id not in a.owed, "an arriving pixel is handed the time it was owed together with this tick's")
+ok(near(step, TICK_DT * 2, 1e-9) and a.owed_for(p.id) == 0.0, "an arriving pixel is handed the time it was owed together with this tick's")
 
 # wake
 a = Activity(far_stride=10)
@@ -139,7 +139,7 @@ def make_sim(tiers=True, owned_at=((4, 4),)):
     """A 120x120 world with 300 pixels nobody owns, spread over all of it (the simulation no longer spawns any itself), plus one pixel per owned_at tile for player 1."""
     sim = Simulation(GenerationSettings(width=120, height=120, seed=SEED))
     sim.start_new_game(SEED)
-    sim.systems.activity.configure(active_chunks=ACTIVE_CHUNKS if tiers else 0, far_stride=STRIDE if tiers else 1)
+    sim.systems.activity.configure(active_chunks=ACTIVE_CHUNKS if tiers else 0, far_stride=STRIDE if tiers else 1, sleep_ticks=0)   # sleeping (9.3) has its own check
     runner = blueprint(sim, "runner", "pixel_runner")
     swimmer = blueprint(sim, "swimmer", "pixel_swimmer")
     scatter = random.Random(SEED + 1)

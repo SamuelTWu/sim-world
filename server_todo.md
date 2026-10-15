@@ -126,9 +126,9 @@ maximize server capacity without sacrificing deterministic simulation or emergen
 - [X] 9.2 Only run expensive simulation systems in relevant active regions. Preserve correct cross-chunk movement, projectile travel, and interactions. Do not unload or freeze authoritative state merely because no client currently sees it.
 - [X] 9.3 Sleep idle pixels. Wake them on relevant events, nearby changes, commands, or scheduled updates.
 - [X] 9.4 Use tiered think rates for noncritical AI and needs systems. Keep collision and other time-sensitive gameplay checks sufficiently frequent.
-- [ ] 9.5 If profiling identifies bulk movement as a bottleneck, use persistent structure-of-arrays storage or vectorized operations for homogeneous pixels/projectiles. Avoid rebuilding arrays every tick.
-- [ ] 9.6 Use cheap rules for simple pixels rather than invoking a full decision system unnecessarily.
-- [ ] 9.7 If still too slow, profile with `cProfile` and consider Numba, Cython, or other compiled hot loops.
+- [O] SKIPPED: 9.5 If profiling identifies bulk movement as a bottleneck, use persistent structure-of-arrays storage or vectorized operations for homogeneous pixels/projectiles. Avoid rebuilding arrays every tick.
+- [O] SKIPPED: 9.6 Use cheap rules for simple pixels rather than invoking a full decision system unnecessarily.
+- [~] 9.7 If still too slow, profile with `cProfile` and consider Numba, Cython, or other compiled hot loops.
 - [ ] 9.8 Add load tests that simulate many clients, dense entity clusters, and large projectile bursts. Record maximum sustainable player/entity counts at the target tick rate.
 - [ ] 9.9 Bound expensive work per tick. Prevent pathological behaviors, collision storms, projectile creation, or cascading interactions from causing unbounded CPU or memory usage.
 - [ ] 9.10 Optimize network traffic separately from simulation. Measure serialization cost, update frequency, interest-management cost, and per-client bandwidth. Prefer events, quantized changed fields, and batched messages.

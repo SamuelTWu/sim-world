@@ -76,6 +76,7 @@ class Simulation:
         """
         pixel = self.systems.spawn_blueprint(definition, owner)
         pixel.position = Vec3(x, y, 0.0)
+        self.systems.context.proximity.invalidate()  # the pixel is at its place now: the next near() sees it (9.7)
 
         if owner is not None:
             self.claim(owner, pixel)

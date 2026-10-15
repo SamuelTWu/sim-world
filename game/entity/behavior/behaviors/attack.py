@@ -3,6 +3,7 @@ import math
 from ..behavior import Behavior, Param
 from ....command.visibility import can_see
 from ....command.attack_method import ATTACK_METHODS, DEFAULT_METHOD, attack_step, load_attack_methods, resolve
+from ...system.counters import count
 from ...system.considerations import Consideration, ramp
 from ...system.decisionSystem import Action
 from ...system.movement import ARRIVED, BLOCKED, step_toward
@@ -30,16 +31,31 @@ def hostile(entity, other):
 
 
 def attack_generator(entity, context):
+    """The nearest pixels this one may attack by itself. Cheap tests first: only pixels within sight (a squared-distance test) are asked whether they
+    are hostile and visible, and when the context has a proximity index only the pixels in the cells around this one are looked at (README 9.7)."""
     sight = entity.trait("attack", "sight", 160.0)
+    x, y = entity.position.x, entity.position.y
+    limit = sight * sight * 1.000001  # a hair over, so the exact hypot test below decides the edge, as before
+    index = getattr(context, "proximity", None)
+    pool = index.near(x, y, sight, context.tick) if index is not None else context.entities.all()
     found = []
+    looked = 0
 
-    for other in context.entities.all():
+    for other in pool:
+        dx, dy = other.position.x - x, other.position.y - y
+        looked += 1
+
+        if dx * dx + dy * dy > limit:
+            continue
+
         if hostile(entity, other):
-            distance = math.hypot(other.position.x - entity.position.x, other.position.y - entity.position.y)
+            distance = math.hypot(dx, dy)
 
             if distance <= sight:
                 found.append((distance, other.id))
 
+    count(context, "attack_scans")
+    count(context, "attack_looked", looked)
     found.sort()
     return [Action("attack", {"target": target, "distance": distance}) for distance, target in found[: entity.trait("attack", "candidates", 3)]]
 

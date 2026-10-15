@@ -10,6 +10,7 @@ from .relationshipSystem import RelationshipSystem
 from .decisionSystem import DecisionSystem, Decision, Action
 from .eventBus import EventBus
 from .activity import Activity
+from .proximity import ProximityIndex
 from .counters import Counters, count
 from .transientEvents import TransientEventLog
 from .simContext import SimContext
@@ -40,6 +41,7 @@ class SystemRunner:
         self.activity.counters = self.counters  # work done this window (tile checks, attacks...), read by the server's metrics (9.1)
         self.order_notices = []  # orders that failed, for the server to tell the player (see orders.notify)
         self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng, transient_events=self.transient_events, counters=self.counters, activity=self.activity)
+        self.context.proximity = ProximityIndex(entity_manager)
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}
         self.think_timers: dict[int, float] = {}

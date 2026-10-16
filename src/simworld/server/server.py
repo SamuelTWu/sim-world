@@ -1,0 +1,480 @@
+"""Authoritative game server.
+
+One asyncio event loop with two kinds of tasks:
+- one tick loop: drains the inbox, applies messages, then runs Simulation.step() at TICK_RATE
+- one handler per connection: reads frames, validates them, and pushes them into the inbox
+
+Only the tick loop touches the simulation and the player table. A handler only touches its own
+Client, the inbox, and its own websocket. Sending is queued per client, so a slow client can
+never stall the tick loop.
+
+Run from the project root:
+    python -m server.server [--host 0.0.0.0] [--port 8765] [--seed N] [--max-players N] [--stats-interval SECONDS] [--active-chunks N] [--far-stride N] [--sleep-ticks N] [--rate KEY=NEAR[,FAR]]...
+"""
+import argparse
+import asyncio
+import hmac
+import os
+import secrets
+import sys
+import threading
+import time
+from collections import namedtuple
+from dataclasses import asdict, dataclass, field
+
+from websockets.asyncio.server import serve
+from websockets.exceptions import ConnectionClosed
+
+from ..shared import protocol as proto
+from ..sim.commands import command as commands
+from ..sim.core.sim_context import TILE_UNITS
+from ..sim.simulation import TICK_DT, TICK_RATE
+from ..sim.visibility import can_see
+from .metrics import Metrics, format_lines
+from .replication import replication
+from .replication.chunksync import ChunkSync, batches, wanted_chunks
+from .replication.interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visible_ids
+from .replication.transientsync import transient_events_for
+
+READY_MARKER = "[server] ready"
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 8765
+MAX_PLAYERS = 16
+MAX_NAME_LENGTH = 24
+JOIN_TIMEOUT = 10.0
+CLOSE_TIMEOUT = 2.0
+MAX_PENDING = 200
+OUTBOX_MAX = 256
+MAX_BEHIND = 0.25
+STATS_INTERVAL = 5.0  # seconds between metrics log lines (metrics.py); 0 turns them off
+
+POLICY_VIOLATION = 1008
+TRY_AGAIN_LATER = 1013
+CLOSE_REPLACED = 1000  # normal close: this connection was replaced by a rejoin of the same player
+
+Close = namedtuple("Close", "code reason")
+
+
+@dataclass(eq=False)
+class Client:
+    websocket: object
+    player_id: int | None = None
+    name: str = ""
+    pending: int = 0
+    closing: bool = False
+    outbox: asyncio.Queue = field(default_factory=asyncio.Queue)
+    known: dict = field(default_factory=dict)
+    chunks: ChunkSync = field(default_factory=ChunkSync)
+    view: tuple | None = None
+    visible: set = field(default_factory=set)
+    keep: set = field(default_factory=set)
+    own: list = field(default_factory=list)  # [(id, x, y)] of the player's living pixels, as of this tick
+
+
+def clean_name(name):
+    return "".join(char for char in name if char.isprintable()).strip()[:MAX_NAME_LENGTH]
+
+
+MAX_RESULT_ITEMS = 256
+VIEW_MARGIN_TILES = 2
+LEAVE_EXTRA_TILES = 2  # a pixel enters at the edge of the visible area but only leaves this much further out (7.4)
+MAX_NOTICES_PER_TICK = 32
+
+
+class Server:
+    def __init__(self, sim, host=DEFAULT_HOST, port=DEFAULT_PORT, max_players=MAX_PLAYERS, stats_interval=STATS_INTERVAL):
+        self.sim = sim
+        self.host = host
+        self.port = port
+        self.max_players = max_players
+        self.stats_interval = stats_interval
+        self.metrics = Metrics(TICK_DT)
+        self.log = print  # where the metrics lines go (a test replaces it)
+        self.inbox = asyncio.Queue()
+        commands.load_commands()
+        self.commands = commands.CommandContext(sim)
+        self.players = {}
+        self.grid = SpatialGrid(TILE_UNITS)
+        self.next_player_id = 1
+        self.sessions = {}  # player_id -> token: who may take that player back after a lost connection (8.4). A player's pixels stay in the world while they are away.
+        self.tasks = set()
+
+    async def run(self):
+        async with serve(self.handle_connection, self.host, self.port, max_size=proto.MAX_MESSAGE_BYTES, compression=None):
+            print(f"[server] ws://{self.host}:{self.port} | seed {self.sim.seed} | {TICK_RATE} Hz | up to {self.max_players} players")
+            print(READY_MARKER, flush=True)
+            await self.tick_loop()
+
+    async def tick_loop(self):
+        next_time = time.monotonic()
+        clock = time.perf_counter
+
+        while True:
+            started = t0 = clock()
+            self.process_inbox()
+            t1 = clock()
+            self.sim.step()
+            t2 = clock()
+            self.grid.sync(self.sim.entity_manager.all())
+            t3 = clock()
+            self.send_order_notices()
+            t4 = clock()
+            self.replicate()
+            t5 = clock()
+            self.metrics.tick(t5 - started, {"inbox": t1 - t0, "step": t2 - t1, "grid": t3 - t2, "notices": t4 - t3, "replicate": t5 - t4})
+
+            now = time.monotonic()
+
+            if self.stats_interval > 0 and now - self.metrics.window_start >= self.stats_interval:
+                self.log_stats(now)
+
+            next_time += TICK_DT
+
+            if now - next_time > MAX_BEHIND:
+                next_time = now
+                self.metrics.behind()
+
+            await asyncio.sleep(max(0.0, next_time - now))
+
+    def log_stats(self, now):
+        """Close the metrics window (metrics.py) and print it. The pixel and projectile counts are taken here, once per window, not every tick."""
+        sim = self.sim
+        total = sum(1 for entity in sim.entity_manager.all() if entity.alive)
+        activity = getattr(sim.systems, "activity", None)
+        working = activity is not None and activity.enabled
+        pixels = activity.last_active if working else total
+        asleep = activity.last_asleep if working else 0
+        projectiles = len(getattr(getattr(sim.systems, "projectiles", None), "active", ()))
+        counters = getattr(sim.systems, "counters", None)
+        snap = self.metrics.snapshot(now, pixels=pixels, pixels_total=total, pixels_asleep=asleep, projectiles=projectiles, counters=counters.take() if counters is not None else None, players=len(self.players), tick=sim.tick)
+
+        for line in format_lines(snap):
+            self.log(f"[server] {line}")
+
+    def process_inbox(self):
+        while not self.inbox.empty():
+            client, message = self.inbox.get_nowait()
+            self.handle(client, message)
+
+    def send_order_notices(self):
+        """Tell the player whose order a pixel gave up on (orders.py queues these). The command was accepted earlier; this is the later bad news."""
+        notices = getattr(self.sim.systems, "order_notices", None)
+
+        if not notices:
+            return
+
+        pending, notices[:] = list(notices), []
+
+        for notice in pending[:MAX_NOTICES_PER_TICK]:
+            client = self.players.get(notice["issuer"])
+
+            if client is not None and not client.closing:
+                self.send(client, proto.order_failed(notice["id"], notice["kind"], notice["reason"]))
+
+    def replicate(self):
+        """Tell each player what changed about the pixels they can see (see replication.py), plus the transient events (shots, impacts) they can see (transientsync.py). Silent when nothing happened."""
+        log = getattr(self.sim.systems, "transient_events", None)
+        transients = log.take() if log is not None else []
+
+        for client in self.players.values():
+            if client.closing:
+                continue
+
+            self.send_terrain(client)
+            enter, update, leave = replication.diff(client.known, self.compute_visible(client), self.seen_by(client), client.keep)
+
+            events = transient_events_for(transients, client.player_id, client.own, client.view, self.grid, margin=VIEW_MARGIN_TILES * TILE_UNITS) if transients else []
+
+            if enter or update or leave or events:
+                self.send(client, proto.tick_update(self.sim.tick, enter, update, leave, events))
+
+    def send_terrain(self, client):
+        """Send tile changes the player has not got: whole logs of chunks that just became near one of their pixels, and new changes in chunks they already have (see chunksync.py)."""
+        world = self.sim.world
+        points = []
+
+        for entity_id in self.sim.owned_ids(client.player_id):
+            entity = self.commands.get_entity(entity_id)
+
+            if entity is not None and entity.alive:
+                points.append((entity.position.x, entity.position.y))
+
+        wanted = wanted_chunks(points, TILE_UNITS, world.width, world.height)
+
+        for tiles in batches(client.chunks.update(wanted, world.deltas)):
+            self.send(client, proto.world_delta(self.sim.tick, [list(tile) for tile in tiles]))
+
+    def handle(self, client, message):
+        if message is None:
+            self.disconnect(client)
+            return
+
+        client.pending -= 1
+
+        if client.closing:
+            return
+
+        if message["type"] == proto.JOIN:
+            self.handle_join(client, message)
+        elif client.player_id is None:
+            self.reject(client, proto.NOT_JOINED, "send join first")
+        elif message["type"] == proto.VIEW:
+            self.handle_view(client, message)
+        else:
+            self.handle_command(client, message)
+
+    def handle_join(self, client, message):
+        if client.player_id is not None:
+            self.reject(client, proto.BAD_MESSAGE, "already joined")
+        elif message["protocol"] != proto.PROTOCOL_VERSION:
+            self.reject(client, proto.BAD_PROTOCOL, f"server speaks protocol {proto.PROTOCOL_VERSION}, you sent {message['protocol']}")
+        elif "player_id" in message:
+            self.handle_rejoin(client, message)
+        elif len(self.players) >= self.max_players:
+            self.reject(client, proto.SERVER_FULL, f"server is full ({self.max_players} players)", TRY_AGAIN_LATER)
+        else:
+            player_id = self.next_player_id
+            self.next_player_id += 1
+            self.sessions[player_id] = secrets.token_hex(16)
+            self.admit(client, player_id, clean_name(message["name"]) or f"player{player_id}", resumed=False)
+
+    def handle_rejoin(self, client, message):
+        """8.4: a client that lost its connection comes back as the same player.
+
+        It must send the player_id AND the token from its first welcome (the id alone would let anyone take over a player).
+        It gets a fresh welcome and a fresh Client here, so everything (terrain, own and nearby pixels) is sent again from scratch:
+        the server never assumes the new connection remembers anything the old one was told. If the old connection is still
+        registered (the server has not noticed it died yet) it is replaced.
+        """
+        player_id = message["player_id"]
+        token = self.sessions.get(player_id)
+
+        if token is None or not hmac.compare_digest(token.encode(), message["token"].encode()):
+            self.reject(client, proto.UNKNOWN_SESSION, "unknown player or wrong token: join as a new player")
+            return
+
+        old = self.players.get(player_id)
+
+        if old is None and len(self.players) >= self.max_players:
+            self.reject(client, proto.SERVER_FULL, f"server is full ({self.max_players} players)", TRY_AGAIN_LATER)
+            return
+
+        if old is not None:
+            self.players.pop(player_id)
+            old.closing = True
+            self.spawn(old.websocket.close(CLOSE_REPLACED, "replaced by a newer connection"))
+
+        name = clean_name(message["name"]) or (old.name if old is not None else "") or f"player{player_id}"
+        self.admit(client, player_id, name, resumed=True)
+
+    def admit(self, client, player_id, name, resumed):
+        client.player_id = player_id
+        client.name = name
+        self.players[player_id] = client
+        self.send(client, proto.welcome(player_id, self.sim.seed, asdict(self.sim.generation_settings), self.sim.world.generation_checksum, self.sim.tick, TICK_RATE, self.sessions[player_id], resumed))
+        print(f"[server] player {player_id} '{client.name}' {'rejoined' if resumed else 'joined'} ({len(self.players)}/{self.max_players})")
+
+    def handle_view(self, client, message):
+        """Remember the part of the world the player's camera shows. A bad rectangle is ignored (the old one stays)."""
+        world = self.sim.world
+        rect = clean_view(message["rect"], world.width * TILE_UNITS, world.height * TILE_UNITS, MAX_VIEW_TILES * TILE_UNITS)
+
+        if rect is None:
+            self.send(client, proto.error(proto.BAD_MESSAGE, "view must be [x0, y0, x1, y1] numbers"))
+        else:
+            client.view = rect
+
+    def seen_by(self, client):
+        """A lookup for replication.diff that returns only pixels this player may be told about (command/visibility.py).
+
+        Everything sent about pixels goes through it, so invisible pixels and spies are never in `enter` or `update` for an enemy,
+        and one that turns invisible mid-game simply `leave`s.
+        """
+        player_id = client.player_id
+        get_entity = self.commands.get_entity
+
+        def lookup(entity_id):
+            entity = get_entity(entity_id)
+            return entity if entity is not None and can_see(player_id, entity) else None
+
+        return lookup
+
+    def compute_visible(self, client):
+        """Fills client.visible (pixels near their own pixels or in their camera: what may ENTER) and client.keep (the same area a little bigger: what stays), see interest.py. Returns visible."""
+        own = []
+
+        for entity_id in self.sim.owned_ids(client.player_id):
+            entity = self.commands.get_entity(entity_id)
+
+            if entity is not None and entity.alive:
+                own.append((entity_id, entity.position.x, entity.position.y))
+
+        client.own = own
+        margin = VIEW_MARGIN_TILES * TILE_UNITS
+        client.visible = visible_ids(self.grid, own, client.view, margin=margin)
+        client.keep = visible_ids(self.grid, own, client.view, margin=margin, extra=LEAVE_EXTRA_TILES * TILE_UNITS)
+        return client.visible
+
+    def handle_command(self, client, message):
+        outcome = commands.execute(self.commands, client.player_id, message["name"], message["args"])
+
+        if not outcome.ok:
+            self.send(client, proto.error(proto.COMMAND_REJECTED, outcome.reason, seq=message["seq"]))
+        elif outcome.info is not None:
+            self.send(client, proto.entity_info(outcome.info["id"], outcome.info, seq=message["seq"]))
+        else:
+            ignored = [[entity_id, reason] for entity_id, reason in list(outcome.ignored.items())[:MAX_RESULT_ITEMS]]
+            self.send(client, proto.command_result(message["seq"], outcome.applied[:MAX_RESULT_ITEMS], ignored))
+
+    def disconnect(self, client):
+        client.closing = True
+
+        if client.player_id is not None and self.players.get(client.player_id) is client:
+            del self.players[client.player_id]
+            print(f"[server] player {client.player_id} '{client.name}' left ({len(self.players)}/{self.max_players})")
+
+    def send(self, client, message):
+        if client.closing:
+            return
+
+        if client.outbox.qsize() >= OUTBOX_MAX:
+            self.drop(client, "too slow", TRY_AGAIN_LATER)
+            return
+
+        data = proto.encode(message)
+        self.metrics.sent(client.player_id, client.name, message["type"], len(data), client.outbox.qsize())
+        client.outbox.put_nowait(data)
+
+    def reject(self, client, code, text, close_code=POLICY_VIOLATION):
+        if client.closing:
+            return
+
+        client.closing = True
+        client.outbox.put_nowait(proto.encode(proto.error(code, text)))
+        client.outbox.put_nowait(Close(close_code, code))
+
+    def drop(self, client, reason, close_code):
+        if client.closing:
+            return
+
+        client.closing = True
+        self.spawn(client.websocket.close(close_code, reason))
+
+    def spawn(self, coroutine):
+        task = asyncio.create_task(coroutine)
+        self.tasks.add(task)
+        task.add_done_callback(self.tasks.discard)
+
+    def receive(self, client, raw):
+        if client.closing:
+            return
+
+        try:
+            message = proto.decode(raw, accept=proto.CLIENT_TYPES)
+        except proto.ProtocolError as problem:
+            self.reject(client, proto.BAD_MESSAGE, str(problem))
+            return
+
+        if client.pending >= MAX_PENDING:
+            self.drop(client, "too many messages", POLICY_VIOLATION)
+            return
+
+        client.pending += 1
+        self.inbox.put_nowait((client, message))
+
+    async def handle_connection(self, websocket):
+        client = Client(websocket)
+        sender = asyncio.create_task(self.send_loop(client))
+
+        try:
+            self.receive(client, await asyncio.wait_for(websocket.recv(), JOIN_TIMEOUT))
+
+            async for raw in websocket:
+                self.receive(client, raw)
+        except asyncio.TimeoutError:
+            self.reject(client, proto.NOT_JOINED, f"send join within {JOIN_TIMEOUT:.0f} seconds")
+        except ConnectionClosed:
+            pass
+        finally:
+            self.inbox.put_nowait((client, None))
+
+            if client.closing and not sender.done():
+                await asyncio.wait({sender}, timeout=CLOSE_TIMEOUT)
+
+            sender.cancel()
+
+    async def send_loop(self, client):
+        try:
+            while True:
+                item = await client.outbox.get()
+
+                if isinstance(item, Close):
+                    await client.websocket.close(item.code, item.reason)
+                    return
+
+                await client.websocket.send(item)
+        except ConnectionClosed:
+            pass
+
+
+def exit_when_stdin_closes():
+    """Used by the single-player launcher: when the game closes or crashes, the pipe closes and the server exits."""
+
+    def watch():
+        sys.stdin.read()
+
+        try:
+            print("[server] launcher closed the pipe, shutting down", flush=True)
+        finally:
+            os._exit(0)
+
+    threading.Thread(target=watch, name="stdin-watch", daemon=True).start()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Sim World server")
+    parser.add_argument("--host", default=DEFAULT_HOST, help="use 0.0.0.0 to accept connections from other machines")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--size", type=int, default=None, help="world width and height in tiles (default: the Simulation default)")
+    parser.add_argument("--max-players", type=int, default=MAX_PLAYERS)
+    parser.add_argument("--stats-interval", type=float, default=STATS_INTERVAL, help="seconds between the performance log lines (0 = off)")
+    parser.add_argument("--active-chunks", type=int, default=None, help="pixels within this many chunks of a pixel a player owns get the full simulation every tick (0 = every pixel does)")
+    parser.add_argument("--far-stride", type=int, default=None, help="other pixels run needs, memory and decisions once in this many ticks (1 = every tick)")
+    parser.add_argument("--rate", action="append", default=[], metavar="KEY=NEAR[,FAR]", help="run system KEY once in NEAR ticks (and once in FAR ticks when far), e.g. --rate needs=2,10 --rate think=1,4; keys not listed run every tick; repeatable")
+    parser.add_argument("--sleep-ticks", type=int, default=None, help="an idle pixel sleeps and looks around again after this many ticks (0 = pixels never sleep)")
+    parser.add_argument("--watch-stdin", action="store_true", help="exit when stdin closes (used by the single-player launcher)")
+    args = parser.parse_args()
+
+    if args.watch_stdin:
+        exit_when_stdin_closes()
+
+    from ..sim.simulation import Simulation
+
+    print("[server] generating world...")
+    sim = Simulation()
+
+    if args.size:
+        sim.generation_settings.width = sim.generation_settings.height = args.size
+
+    sim.start_new_game(args.seed)
+    sim.systems.activity.configure(args.active_chunks, args.far_stride, args.sleep_ticks)
+
+    for spec in args.rate:
+        try:
+            key, strides = spec.split("=", 1)
+            parts = [int(part) for part in strides.split(",")]
+            assert key and 1 <= len(parts) <= 2
+        except (ValueError, AssertionError):
+            parser.error(f"--rate wants KEY=NEAR or KEY=NEAR,FAR (whole numbers), not {spec!r}")
+
+        sim.systems.activity.set_rate(key, near=parts[0], far=parts[1] if len(parts) == 2 else None)
+
+    try:
+        asyncio.run(Server(sim, args.host, args.port, args.max_players, args.stats_interval).run())
+    except KeyboardInterrupt:
+        print("\n[server] stopped")
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,184 @@
+from dataclasses import dataclass, field
+import hashlib
+
+from .tile import Tile
+from .deltas import DeltaLog
+
+
+@dataclass
+class World:
+    """
+    The complete state of the game world.
+
+    World owns the tiles and is responsible for changing world state.
+    Rendering code should read from World, but should not modify it.
+    All tile changes must go through set_tile().
+    """
+
+    width: int
+    height: int
+    default_tile: Tile
+
+    # The actual world data.
+    # tiles[y][x] -> Tile
+    tiles: list[list[Tile]] = field(init=False)
+
+    # Number of simulation updates that have occurred.
+    tick: int = field(default=0, init=False)
+
+    # Change log for multiplayer. Clients regenerate the terrain from the seed,
+    # so only changes made AFTER generation are recorded (Simulation turns recording on).
+    # changes: (x, y) -> tile name, latest value only
+    # dirty: positions changed since the last take_dirty() call
+    recording: bool = field(default=False, init=False)
+    changes: dict[tuple[int, int], str] = field(default_factory=dict, init=False, repr=False)
+    dirty: set[tuple[int, int]] = field(default_factory=set, init=False, repr=False)
+    # The same changes as an ordered log grouped by chunk (see deltas.py).
+    deltas: DeltaLog = field(default_factory=DeltaLog, init=False, repr=False)
+    # Called as on_tile_change(x, y) after a tile really changed (the simulation sets it to wake sleeping pixels nearby, 9.3). None = nobody listens.
+    on_tile_change: object = field(default=None, init=False, repr=False, compare=False)
+
+    # Checksum of the generated terrain, before any changes. Set by finish_generation().
+    generation_checksum: str | None = field(default=None, init=False)
+
+    def __post_init__(self):
+        if self.width <= 0:
+            raise ValueError("World width must be greater than 0.")
+
+        if self.height <= 0:
+            raise ValueError("World height must be greater than 0.")
+
+        self.tiles = [
+            [self.default_tile for _ in range(self.width)]
+            for _ in range(self.height)
+        ]
+
+    # Tile access
+    def get_tile(self, x: int, y: int) -> Tile:
+        """Return the tile at a world coordinate."""
+
+        self._validate_coordinates(x, y)
+        return self.tiles[y][x]
+
+    def set_tile(self, x: int, y: int, tile: Tile) -> bool:
+        """
+        Replace the tile at a world coordinate.
+
+        This is the only way tiles should change. Returns True if the tile was replaced.
+        """
+
+        self._validate_coordinates(x, y)
+        current = self.tiles[y][x]
+
+        if current is tile:
+            return False
+
+        self.tiles[y][x] = tile
+
+        if self.recording and current.name != tile.name:
+            self.changes[(x, y)] = tile.name
+            self.dirty.add((x, y))
+            self.deltas.record(x, y, tile.name)
+
+        if self.on_tile_change is not None and current.name != tile.name:
+            self.on_tile_change(x, y)
+
+        return True
+
+    def take_dirty(self) -> list[tuple[int, int, str]]:
+        """Return (x, y, tile_name) for every tile changed since the last call, then clear."""
+
+        changed = [(x, y, self.tiles[y][x].name) for x, y in sorted(self.dirty)]
+        self.dirty.clear()
+        return changed
+
+    def finish_generation(self, record: bool = True) -> None:
+        """
+        Call once, right after world generation and before any tile changes.
+
+        Records the checksum of the generated terrain and, if record is True, starts logging
+        changes. The server sends generation_checksum to joining clients, who compare it with
+        the checksum of their own freshly generated world (clients pass record=False).
+        """
+
+        self.generation_checksum = self.checksum()
+        self.recording = record
+
+    def checksum(self, x0: int = 0, y0: int = 0, x1: int | None = None, y1: int | None = None) -> str:
+        """
+        Return a SHA-256 hex digest of the tile names in a region (default: the whole world).
+
+        Tiles are hashed row by row (y, then x) using tile.name as the tile id.
+        Colors and every other tile field are ignored, so only the layout matters.
+        """
+
+        x1 = self.width if x1 is None else x1
+        y1 = self.height if y1 is None else y1
+
+        if not (0 <= x0 < x1 <= self.width and 0 <= y0 < y1 <= self.height):
+            raise ValueError(f"Checksum region ({x0}, {y0})-({x1}, {y1}) is outside the {self.width}x{self.height} world.")
+
+        digest = hashlib.sha256()
+        digest.update(f"world-v1|{self.width}x{self.height}|{x0},{y0},{x1},{y1}\n".encode())
+
+        for y in range(y0, y1):
+            digest.update("\x1f".join(tile.name for tile in self.tiles[y][x0:x1]).encode() + b"\n")
+
+        return digest.hexdigest()
+
+    def is_inside(self, x: int, y: int) -> bool:
+        """Return True if the coordinate is inside the world."""
+
+        return (
+            0 <= x < self.width
+            and 0 <= y < self.height
+        )
+
+
+    # World updates
+    def update(self, delta_time: float) -> None:
+        """
+        Advance the simulation.
+
+        This is where world systems can eventually be updated:
+        - water movement
+        - fire
+        - plant growth
+        - temperature
+        - weather
+        - erosion
+        - NPCs
+        """
+
+        self.tick += 1
+
+        self._update_tiles(delta_time)
+
+    def _update_tiles(self, delta_time: float) -> None:
+        """
+        Update tile-based simulation.
+
+        Currently empty, but this is where simulation logic can be added.
+        Any tile change made here must also go through set_tile().
+        """
+
+        pass
+
+
+    # Utilities
+    def fill(self, tile: Tile) -> None:
+        """Fill the entire world with one tile type. Generation only."""
+
+        if self.recording:
+            raise RuntimeError("fill() bypasses the change log; use set_tile() once the game has started.")
+
+        for y in range(self.height):
+            for x in range(self.width):
+                self.tiles[y][x] = tile
+
+    def _validate_coordinates(self, x: int, y: int) -> None:
+        if not self.is_inside(x, y):
+            raise IndexError(
+                f"World coordinate ({x}, {y}) is outside "
+                f"the {self.width}x{self.height} world."
+            )

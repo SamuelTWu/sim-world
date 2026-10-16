@@ -1,0 +1,230 @@
+import time
+from pathlib import Path
+
+import pygame
+
+from .camera import Camera
+from .world_renderer import WorldRenderer
+from .entity_renderer import EntityRenderer
+from .transient_events import TransientEvents
+from .hints import Hints
+from .selection import Selection
+from .sprites import get_sprite, load_sprites
+from ..ui.gui import Gui
+
+
+MIN_SIZE = (640, 400)
+ENTITY_FOLDER = Path(__file__).resolve().parent.parent / "entity" / "entities"
+RESIZE_EVENTS = tuple(getattr(pygame, name) for name in ("VIDEORESIZE", "WINDOWRESIZED", "WINDOWSIZECHANGED") if hasattr(pygame, name))
+
+
+class Renderer:
+    TILE_SIZE = 32
+
+    def __init__(self, width: int, height: int):
+        pygame.init()
+        pygame.font.init()
+
+        self.width = width
+        self.height = height
+        self.restart_requested = False
+        self.menu_requested = False
+        self.place_requests = []
+        self.view_entities = []
+        self.player_id = None
+
+        self.fullscreen = False
+        self.windowed_size = self.fit_to_desktop(width, height)
+        self.screen = pygame.display.set_mode(self.windowed_size, pygame.RESIZABLE)
+        self.width, self.height = self.screen.get_size()
+        pygame.display.set_caption("Sim World")
+        self.clock = pygame.time.Clock()
+        self.font = pygame.font.Font(None, 18)
+
+        self.camera = Camera(self.width, self.height, self.TILE_SIZE)
+        self.world_renderer = WorldRenderer(self.screen, self.camera, self.font, self.TILE_SIZE)
+        self.entity_renderer = EntityRenderer(self.screen, self.camera)
+        self._fitted_world_size = None
+
+        self.gui = Gui()
+        self.gui.on_blueprints_changed = lambda: load_sprites(ENTITY_FOLDER)
+        self.gui.sprite_color = lambda sprite_id: get_sprite(sprite_id).color
+        self.selection = Selection(self.gui)
+        self.hints = Hints()
+        self.transient_events = TransientEvents()
+        load_sprites(ENTITY_FOLDER)
+
+        self.debug_map_index = -1
+        self.debug_map_names = []
+        self.debug_feature_index = -1
+        self.debug_feature_names = []
+
+    @staticmethod
+    def fit_to_desktop(width, height):
+        """A window larger than the desktop would hang off the screen, so shrink it to about 90% of the desktop."""
+        try:
+            desktop_w, desktop_h = pygame.display.get_desktop_sizes()[0]
+        except (AttributeError, pygame.error, IndexError):
+            return width, height
+
+        return min(width, int(desktop_w * 0.9)), min(height, int(desktop_h * 0.9))
+
+    def toggle_fullscreen(self):
+        """F11 / Alt+Enter. Fullscreen covers everything at the desktop's size; toggling back restores the old window."""
+        self.fullscreen = not self.fullscreen
+
+        if self.fullscreen:
+            self.windowed_size = (self.width, self.height)
+            self.apply_mode((0, 0), pygame.FULLSCREEN)
+        else:
+            self.apply_mode(self.windowed_size, pygame.RESIZABLE)
+
+    def apply_mode(self, size, flags):
+        self.screen = pygame.display.set_mode(size, flags)
+        self.resized()
+
+    def resized(self):
+        """Call after the window changes size. Re-reads the real size and tells everything that draws to the screen."""
+        self.screen = pygame.display.get_surface()
+        self.width, self.height = self.screen.get_size()
+
+        if not self.fullscreen and (self.width < MIN_SIZE[0] or self.height < MIN_SIZE[1]):
+            self.screen = pygame.display.set_mode((max(self.width, MIN_SIZE[0]), max(self.height, MIN_SIZE[1])), pygame.RESIZABLE)
+            self.width, self.height = self.screen.get_size()
+
+        for part in (self.world_renderer, self.entity_renderer):
+            if hasattr(part, "screen"):
+                part.screen = self.screen
+
+        if hasattr(self.camera, "resize"):
+            self.camera.resize(self.width, self.height)
+        else:
+            for name, value in (("width", self.width), ("height", self.height), ("screen_width", self.width), ("screen_height", self.height), ("viewport_width", self.width), ("viewport_height", self.height)):
+                if hasattr(self.camera, name):
+                    setattr(self.camera, name, value)
+
+    def screen_to_world(self, pos):
+        """The world position under a screen position. Uses the camera's own function if it has one, otherwise inverts world_to_screen."""
+        if hasattr(self.camera, "screen_to_world"):
+            return self.camera.screen_to_world(*pos)
+
+        x0, y0 = self.camera.world_to_screen(0.0, 0.0)
+        x1, _ = self.camera.world_to_screen(1.0, 0.0)
+        _, y1 = self.camera.world_to_screen(0.0, 1.0)
+        return (pos[0] - x0) / (x1 - x0), (pos[1] - y0) / (y1 - y0)
+
+    def take_place_requests(self):
+        """Blueprints the player dropped on the map since the last call, as [(blueprint id, world x, world y)]. The game sends them as `place` commands."""
+        requests, self.place_requests = self.place_requests, []
+        return requests
+
+    def take_act_requests(self):
+        """Orders the player clicked since the last call, as the arguments of the `act` command. The game sends them."""
+        return self.selection.take_requests()
+
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+
+            if event.type in RESIZE_EVENTS:
+                self.resized()
+
+            if self.selection.drag is not None and event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP) and self.selection.handle_event(event, self.view_entities, self.player_id, self.camera, self.screen_to_world):
+                continue
+
+            if self.gui.handle_event(event):
+                continue
+
+            if self.selection.handle_event(event, self.view_entities, self.player_id, self.camera, self.screen_to_world):
+                continue
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_F11 or (event.key == pygame.K_RETURN and event.mod & pygame.KMOD_ALT):
+                    self.toggle_fullscreen()
+                    continue
+
+                if event.key == pygame.K_m:
+                    self.debug_map_index += 1
+                    if self.debug_map_index >= len(self.debug_map_names):
+                        self.debug_map_index = -1
+                elif event.key == pygame.K_b:
+                    self.debug_feature_index += 1
+                    if self.debug_feature_index >= len(self.debug_feature_names):
+                        self.debug_feature_index = -1
+                elif event.key == pygame.K_r:
+                    self.restart_requested = True
+                elif event.key == pygame.K_ESCAPE:
+                    self.menu_requested = True
+
+            self.camera.handle_event(event)
+
+        for blueprint_id, pos in self.gui.take_drops():
+            x, y = self.screen_to_world(pos)
+            self.place_requests.append((blueprint_id, x, y))
+
+        return True
+
+    def take_inspect_requests(self):
+        """Pixels the player clicked (to look at their attributes) since the last call, as [pixel id]. The game sends them as `inspect` commands."""
+        return self.selection.take_inspects()
+
+    def take_edit_requests(self):
+        """Upgrades the player applied in the side panel since the last call, as [(pixel id, changes)]. The game sends them as `edit_property` commands."""
+        return self.gui.take_edits()
+
+    def take_save_requests(self):
+        """Blueprints the player designed and saved in the editor since the last call, as [(name, definition)]. The game sends them as `save_blueprint` commands."""
+        return self.gui.take_saves()
+
+    def add_transient_events(self, events):
+        """Start drawing the transient events (shots, impacts) the server reported, from Client.take_transient_events(). They animate here and vanish by themselves."""
+        self.transient_events.add(events, time.monotonic())
+
+    def update(self, delta_time):
+        self.camera.update(delta_time)
+        self.gui.update()
+
+    def render(self, view):
+        """Draw one frame from a View (see server/replica.py). This is the renderer's only source of game data."""
+        world, maps, features, entities = view.world, view.maps, view.features, view.entities
+        self.view_entities, self.player_id = list(entities or ()), getattr(view, "player_id", None)
+        self.selection.prune(self.view_entities, self.player_id)
+        self.hints.update(self.view_entities, player_id=self.player_id)
+
+        if world is not None:
+            world_size = (world.width, world.height)
+            if world_size != self._fitted_world_size:
+                self.camera.fit_world(*world_size)
+                self._fitted_world_size = world_size
+
+        self.screen.fill((0, 0, 0))
+
+        if maps:
+            self.debug_map_names = maps.names()
+
+        if features:
+            self.debug_feature_names = features.names()
+
+        if self.debug_map_index >= 0 and maps and self.debug_map_names:
+            self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
+        elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
+            self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
+        else:
+            self.world_renderer.render_world(world)
+
+        if entities:
+            self.entity_renderer.render_entities(entities)
+
+        self.selection.draw_world(self.screen, self.view_entities, self.camera)
+        self.transient_events.draw(self.screen, self.camera, time.monotonic())
+        self.hints.draw(self.screen, self.camera, self.gui)
+        self.gui.draw(self.screen)
+        self.selection.draw_menu(self.screen)
+        pygame.display.flip()
+
+    def tick(self, fps=60):
+        return self.clock.tick(fps) / 1000.0
+
+    def close(self):
+        pygame.quit()

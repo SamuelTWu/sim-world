@@ -6,6 +6,7 @@ from ..ai.decision_system import Action
 from ..core.sim_context import TILE_UNITS
 from ..navigation.movement import clamp_to_world
 from ..ai.task import Task, RUNNING, DONE, FAILED
+from ..core.limits import LimitReached
 
 READY_KEY = "spawn_ready_tick"
 PATIENCE = 30.0
@@ -83,7 +84,10 @@ class SpawnTask(Task):
             angle = context.rng.uniform(0, math.tau)
             x, y = clamp_to_world(context, entity.position.x + math.cos(angle) * TILE_UNITS, entity.position.y + math.sin(angle) * TILE_UNITS)
 
-        context.spawn(definition, entity.owner, x, y)
+        try:
+            context.spawn(definition, entity.owner, x, y)
+        except LimitReached:
+            return FAILED
         entity.components[READY_KEY] = context.tick + int(entity.trait("spawn", "cooldown_ticks", 0))
         return DONE
 

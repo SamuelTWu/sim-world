@@ -44,6 +44,10 @@ class RelationshipSystem:
     def remove(self, source: Entity, target: Entity):
         self.relationships.pop((source.id, target.id), None)
 
+    def remove_entity(self, entity_id: int):
+        for key in [key for key in self.relationships if entity_id in key]:
+            del self.relationships[key]
+
     def all_for(self, source: Entity) -> list[Relationship]:
         return [relationship for relationship in self.relationships.values() if relationship.source == source.id]
 

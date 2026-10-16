@@ -66,7 +66,7 @@ class Simulation:
             self.world, self.entity_manager, self.behavior_manager, maps=self.generator.maps, rng=self.rng
         )
 
-        self.systems.context.spawn = self.spawn_pixel
+        self.systems.context.spawn = self.create_pixel
         self.world.on_tile_change = self.systems.activity.tile_changed  # a changed tile wakes the sleeping pixels around it (9.3)
 
     def spawn_pixel(self, definition, owner, x, y):
@@ -82,6 +82,30 @@ class Simulation:
             self.claim(owner, pixel)
 
         return pixel
+
+    def create_pixel(self, definition, owner, x, y):
+        limits = self.systems.limits
+        limits.check_spawn(self.tick, owner, self.count_alive, self.count_owned)
+        pixel = self.spawn_pixel(definition, owner, x, y)
+        limits.note_spawn(owner)
+        return pixel
+
+    def count_alive(self):
+        return sum(1 for pixel in self.entity_manager.all() if pixel.alive)
+
+    def count_owned(self, player_id):
+        total = 0
+
+        for pixel_id in self.owned.get(player_id, ()):
+            try:
+                pixel = self.entity_manager.get(pixel_id)
+            except KeyError:
+                continue
+
+            if pixel is not None and pixel.alive:
+                total += 1
+
+        return total
 
     def claim(self, player_id, pixel):
         self.owned.setdefault(player_id, []).append(pixel.id)

@@ -79,6 +79,8 @@ MAX_RESULT_ITEMS = 256
 VIEW_MARGIN_TILES = 2
 LEAVE_EXTRA_TILES = 2  # a pixel enters at the edge of the visible area but only leaves this much further out (7.4)
 MAX_NOTICES_PER_TICK = 32
+MAX_MESSAGES_PER_CLIENT_PER_TICK = 16
+MAX_MESSAGES_PER_TICK = 512
 
 
 class Server:
@@ -91,6 +93,9 @@ class Server:
         self.metrics = Metrics(TICK_DT)
         self.log = print  # where the metrics lines go (a test replaces it)
         self.inbox = asyncio.Queue()
+        self.carry = []
+        self.per_client_messages = MAX_MESSAGES_PER_CLIENT_PER_TICK
+        self.per_tick_messages = MAX_MESSAGES_PER_TICK
         commands.load_commands()
         self.commands = commands.CommandContext(sim)
         self.players = {}
@@ -152,9 +157,34 @@ class Server:
             self.log(f"[server] {line}")
 
     def process_inbox(self):
+        waiting = self.carry
+        self.carry = []
+
         while not self.inbox.empty():
-            client, message = self.inbox.get_nowait()
+            waiting.append(self.inbox.get_nowait())
+
+        handled = {}
+        blocked = set()
+        total = 0
+        deferred = 0
+
+        for client, message in waiting:
+            key = id(client)
+
+            if key in blocked or total >= self.per_tick_messages or (message is not None and handled.get(key, 0) >= self.per_client_messages):
+                blocked.add(key)
+                self.carry.append((client, message))
+                deferred += 1
+                continue
+
+            handled[key] = handled.get(key, 0) + 1
+            total += 1
             self.handle(client, message)
+
+        counters = getattr(self.sim.systems, "counters", None)
+
+        if deferred and counters is not None:
+            counters.add("commands_deferred", deferred)
 
     def send_order_notices(self):
         """Tell the player whose order a pixel gave up on (orders.py queues these). The command was accepted earlier; this is the later bad news."""
@@ -444,6 +474,11 @@ def main():
     parser.add_argument("--rate", action="append", default=[], metavar="KEY=NEAR[,FAR]", help="run system KEY once in NEAR ticks (and once in FAR ticks when far), e.g. --rate needs=2,10 --rate think=1,4; keys not listed run every tick; repeatable")
     parser.add_argument("--sleep-ticks", type=int, default=None, help="an idle pixel sleeps and looks around again after this many ticks (0 = pixels never sleep)")
     parser.add_argument("--watch-stdin", action="store_true", help="exit when stdin closes (used by the single-player launcher)")
+    parser.add_argument("--max-player-pixels", type=int, default=None)
+    parser.add_argument("--max-world-pixels", type=int, default=None)
+    parser.add_argument("--max-spawns-per-tick", type=int, default=None)
+    parser.add_argument("--max-thinks-per-tick", type=int, default=None)
+    parser.add_argument("--max-messages-per-tick", type=int, default=None)
     args = parser.parse_args()
 
     if args.watch_stdin:
@@ -458,8 +493,8 @@ def main():
         sim.generation_settings.width = sim.generation_settings.height = args.size
 
     sim.start_new_game(args.seed)
-    sim.systems.activity.configure(args.active_chunks, args.far_stride, args.sleep_ticks)
-
+    sim.systems.limits.configure(args.max_player_pixels, args.max_world_pixels, args.max_spawns_per_tick, None, args.max_thinks_per_tick)
+    
     for spec in args.rate:
         try:
             key, strides = spec.split("=", 1)
@@ -471,7 +506,9 @@ def main():
         sim.systems.activity.set_rate(key, near=parts[0], far=parts[1] if len(parts) == 2 else None)
 
     try:
-        asyncio.run(Server(sim, args.host, args.port, args.max_players, args.stats_interval).run())
+        server = Server(sim, args.host, args.port, args.max_players, args.stats_interval)
+        server.per_client_messages = args.max_messages_per_tick or server.per_client_messages
+        asyncio.run(server.run())
     except KeyboardInterrupt:
         print("\n[server] stopped")
 

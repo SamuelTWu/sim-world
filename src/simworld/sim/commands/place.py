@@ -1,4 +1,5 @@
 from .command import Command, Outcome, Rejected, as_blueprint, as_point, clean_args, command
+from ..core.limits import LimitReached
 
 PLACE_GATES = []
 
@@ -38,5 +39,8 @@ class Place(Command):
             if reason:
                 raise Rejected(reason)
 
-        pixel = ctx.spawn(definition, player_id, x, y)
+        try:
+            pixel = ctx.spawn(definition, player_id, x, y)
+        except LimitReached as problem:
+            raise Rejected(str(problem))
         return Outcome(True, applied=[pixel.id])

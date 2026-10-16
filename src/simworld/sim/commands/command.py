@@ -128,7 +128,7 @@ class CommandContext:
 
         Used by `place` (the player creates a pixel). The `spawn` behavior uses the same Simulation.spawn_pixel through SimContext.
         """
-        return self.sim.spawn_pixel(definition, player_id, x, y)
+        return self.sim.create_pixel(definition, player_id, x, y)
 
 
 def commandable(entity, name):

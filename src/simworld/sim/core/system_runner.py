@@ -18,7 +18,8 @@ from ..perception.stimulus import StimulusField
 from ..ai.orders import ORDER_KEY, follow_orders, order_finished
 from ..ai.task import Task, RUNNING, FAILED
 from ..territory.territory import Territory
-from ..territory.territoryRules import register_territory_rules
+from ..territory.territory_rules import register_territory_rules
+from .limits import Limits
 
 
 class SystemRunner:
@@ -42,6 +43,9 @@ class SystemRunner:
         self.order_notices = []  # orders that failed, for the server to tell the player (see orders.notify)
         self.context = SimContext(world=world, entities=entity_manager, needs=self.need_system, events=self.events, territory=Territory(), stimuli=StimulusField(), maps=maps, rng=self.rng, transient_events=self.transient_events, counters=self.counters, activity=self.activity)
         self.context.proximity = ProximityIndex(entity_manager)
+        self.limits = Limits()
+        self.limits.counters = self.counters
+        self.context.limits = self.limits
         self.action_generators: list[Callable[[Entity, SimContext], list[Action]]] = []
         self.task_factories: dict[str, Callable[[Entity, Action, SimContext], Task | None]] = {}
         self.think_timers: dict[int, float] = {}
@@ -141,6 +145,27 @@ class SystemRunner:
         self.think_timers[entity.id] = self.THINK_INTERVAL
         return True
 
+    def would_think(self, entity, delta_time):
+        if entity.task is None:
+            return True
+
+        return self.think_timers.get(entity.id, (entity.id * 0.037) % self.THINK_INTERVAL) - delta_time <= 0.0
+
+    def over_think_budget(self, entities, thinks, tick):
+        budget = self.limits.max_thinks
+
+        if budget <= 0:
+            return ()
+
+        wanting = [index for index, step in enumerate(thinks) if step is not None and entities[index].alive and self.would_think(entities[index], step)]
+
+        if len(wanting) <= budget:
+            return ()
+
+        priority = self.limits.think_priority
+        wanting.sort(key=lambda index: priority(entities[index].id, tick))
+        return set(wanting[budget:])
+
     def think(self, entity: Entity):
         count(self.context, "thinks")
         if follow_orders(self, entity):
@@ -227,7 +252,10 @@ class SystemRunner:
 
         self.events.emit("frame", delta_time=delta_time)
 
-        for entity, step in zip(entities, thinks):
+        denied = self.over_think_budget(entities, thinks, tick)
+        budget = self.limits.max_thinks
+        thought = 0
+        for index, (entity, step) in enumerate(zip(entities, thinks)):
             if not entity.alive:
                 continue
 
@@ -246,7 +274,13 @@ class SystemRunner:
 
             if step is None:
                 count(self.context, "think_deferred")
+            
+            elif index in denied or (budget > 0 and thought >= budget and entity.alive and self.would_think(entity, step)):
+                activity.defer("think", entity, step)
+                count(self.context, "think_capped")
+            
             elif entity.alive and self.should_think(entity, step):
+                thought+=1
                 self.think(entity)
 
                 if entity.alive:

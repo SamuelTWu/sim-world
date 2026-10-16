@@ -131,7 +131,7 @@ maximize server capacity without sacrificing deterministic simulation or emergen
 - [X] 9.7 If still too slow, profile with `cProfile` and consider Numba, Cython, or other compiled hot loops.
 - [X] 9.7b added proximity, a new entity/system/proximity.py buckets pixels into 4-tile cells, once per tick and only when someone asks, so no movement code changed. A pixel now looks only at its own cell and the neighbours.
 - [X] 9.8 Add load tests that simulate many clients, dense entity clusters, and large projectile bursts. Record maximum sustainable player/entity counts at the target tick rate.
-- [ ] 9.9 Bound expensive work per tick. Prevent pathological behaviors, collision storms, projectile creation, or cascading interactions from causing unbounded CPU or memory usage.
+- [X] 9.9 Bound expensive work per tick. Prevent pathological behaviors, collision storms, projectile creation, or cascading interactions from causing unbounded CPU or memory usage.
 - [ ] 9.10 Optimize network traffic separately from simulation. Measure serialization cost, update frequency, interest-management cost, and per-client bandwidth. Prefer events, quantized changed fields, and batched messages.
 - [ ] 9.11 Preserve determinism when optimizing. Any changes to iteration order, parallelism, floating-point calculations, or RNG usage must be tested against the authoritative simulation's determinism requirements.
 

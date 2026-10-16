@@ -261,6 +261,11 @@ class Activity:
         current = self.rates.get(key) or Rate()
         self.rates[key] = Rate(current.near if near is None else near, current.far if far is None else far, current.sleeps if sleeps is None else sleeps)
 
+    def defer(self, key, entity, step):
+        if self.enabled:
+            bucket = self.owed.setdefault(key, {})
+            bucket[entity.id] = bucket.get(entity.id, 0.0) + step
+
     def critical(self, key):
         """Make a system run every tick for every pixel again."""
         self.rates.pop(key, None)

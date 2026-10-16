@@ -24,6 +24,7 @@ class SimContext:
     activity: Any = None  # Activity (activity.py): which pixels get the expensive systems every tick (9.2)
     counters: Any = None  # Counters (counters.py): how much work was done, for the server's log (9.1)
     proximity: Any = None  # ProximityIndex (proximity.py): who is near a point without looking at every pixel (9.7)
+    limits: Any = None
 
     def __post_init__(self):
         if self.rng is None:

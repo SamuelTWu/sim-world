@@ -4,7 +4,7 @@
 4) once the colony is placed, fog rolls in, obscuring undiscovered parts of the map for all players. 
 5) once a colony is placed, they immediately get 1 pixel, that wanders around. They also get 1 free tech to unlock, which, depending on the resources in their territory, can be collecting wood, stone, plants, hunting, water,
 There are several stages of the game, i think that can help me work on the game loop:
-Early game loops:
+Early game loops (all of these can evolve, mostly through automation but also item tech?):
 A. Gardening & Farming
 B. Fishing
 C. Mining
@@ -21,4 +21,10 @@ M. Festivals & Traditions
 N. Discoveries & Research
 O. Population & Family Growth
 P. Protection & Threats
+
+Behaviors: can we abstract them? fishing is really attacking fish, if u think about it. same with hunting? spy and trade are versions of explore? idk. 
+
+types of upgrade: behaviors (fish, trade, attack, explore, spy, etc), attributes (health, stealth, patience), items (fishing rod, sword, etc), structures (fire, storage, wood block, concrete, etc.), blueprints (explorer, swordsman, etc)<- should this be purchased? to reward creative players?
+
+
 

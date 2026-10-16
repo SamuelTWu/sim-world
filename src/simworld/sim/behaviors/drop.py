@@ -27,6 +27,7 @@ from ..entities.entity import Vec3
 from ..navigation.movement import BLOCKED, clamp_to_world, step_toward
 from ..core.sim_context import TILE_UNITS
 from ..ai.task import Task, RUNNING, DONE, FAILED
+from ..core.limits import LimitReached
 
 DEFAULT_BLUEPRINT = "resource_pile"
 DROP_BLUEPRINTS = {}
@@ -116,7 +117,11 @@ def materialize(context, entity, name, amount, x, y):
 
     definition = dict(definition)
     definition["slots"] = max(definition.get("slots", 0) if isinstance(definition.get("slots"), int) else 0, inventory.whole_slots(name, taken))
-    pile = context.spawn(definition, entity.owner, x, y)
+    try:
+        pile = context.spawn(definition, entity.owner, x, y)
+    except LimitReached:
+        inventory.add_resource(entity, name, taken)
+        return False
 
     if inventory.add_resource(pile, name, taken) != taken:
         inventory.add_resource(entity, name, taken)

@@ -27,6 +27,9 @@ class MemorySystem:
     def initialize(self, entity: Entity):
         self.memories.setdefault(entity.id, [])
 
+    def remove(self, entity):
+        self.memories.pop(entity.id, None)
+
     def remember(self, entity: Entity, memory: Memory):
         self.memories.setdefault(entity.id, []).append(memory)
 

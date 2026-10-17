@@ -61,6 +61,6 @@ class EntityFactory:
             entity.home = Vec3(*definition["home"])
 
         for need_name, data in definition.get("needs", {}).items():
-            entity.needs[need_name] = Need(name=need_name, value=data.get("value", 0.0), rate=data.get("rate", 0.0), minimum=data.get("minimum", 0.0), maximum=data.get("maximum", 1.0))
+            entity.needs[need_name] = Need.from_dict({**data, "name": need_name})
 
         return entity

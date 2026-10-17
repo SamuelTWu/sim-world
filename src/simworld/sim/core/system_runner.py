@@ -16,10 +16,11 @@ from .transient_events import TransientEventLog
 from .sim_context import SimContext
 from ..perception.stimulus import StimulusField
 from ..ai.orders import ORDER_KEY, follow_orders, order_finished
-from ..ai.task import Task, RUNNING, FAILED
+from ..ai.task import Task, RUNNING, FAILED, DONE
 from ..territory.territory import Territory
 from ..territory.territory_rules import register_territory_rules
 from .limits import Limits
+
 
 
 class SystemRunner:
@@ -62,7 +63,7 @@ class SystemRunner:
     def spawn_blueprint(self, blueprint: dict, owner: int | None = None) -> Entity:
         entity = self.entity_manager.spawn_blueprint(blueprint, owner)
         self.behaviors.apply(entity)
-        self.memory_system.initialize(entity)
+        self.need_system.initialize(entity)
         self.events.emit("entity_spawned", entity=entity)
         return entity
 
@@ -124,10 +125,15 @@ class SystemRunner:
         except Exception:
             # One broken task must not stop the whole simulation (and with it the server): log it, fail the task.
             traceback.print_exc()
+            count(self.context, "task_errors")
             status = FAILED
 
         if status != RUNNING:
             order_finished(self, entity, task, status)
+            task.finish(entity, self.context, status)
+            if status == DONE:
+                self.need_system.completed(entity, task.name)
+
             entity.task = None
             entity.task_score = 0.0
             self.events.emit("task_finished", entity=entity, task=task, status=status)

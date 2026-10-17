@@ -3,7 +3,16 @@ from typing import Any
 
 from .considerations import curve_from
 
-DEFAULT_NEEDS = {}
+DEFAULT_NEEDS = {
+    "hunger": {"rate": 0.004, "curve": "quadratic", "applies": ("roam",)},
+    "boredom": {"rate": 0.01, "applies": ("roam",)},
+    "safety": {"rate": -0.02, "curve": "logistic", "curve_args": {"midpoint": 0.5, "steepness": 8.0}, "applies": ("roam", "attack")},
+}
+
+SATISFIES = {
+    "eat": {"hunger": 0.5},
+    "roam": {"boredom": 0.1},
+}
 
 
 @dataclass(slots=True)
@@ -42,11 +51,28 @@ class Need:
         return cls(name=data["name"], value=float(data.get("value", 0.0)), rate=float(data.get("rate", 0.0)), minimum=float(data.get("minimum", 0.0)), maximum=float(data.get("maximum", 1.0)), curve=curve, curve_args=curve_args)
 
 
+def drive(action_name: str):
+    def read(entity, action=None, context=None):
+        urgencies = [entity.needs[name].get_urgency() for name in SATISFIES.get(action_name, ()) if name in entity.needs]
+        return max(urgencies) if urgencies else 1.0
+
+    return read
+
+
 class NeedSystem:
     def initialize(self, entity):
         for name, spec in DEFAULT_NEEDS.items():
-            if name not in entity.needs:
+            applies = spec.get("applies")
+
+            if name not in entity.needs and (not applies or any(trait in entity.traits for trait in applies)):
                 entity.needs[name] = Need.from_dict({**spec, "name": name})
+
+    def completed(self, entity, action_name: str):
+        for name, fraction in SATISFIES.get(action_name, {}).items():
+            need = entity.needs.get(name)
+
+            if need:
+                need.value = max(need.minimum, need.value - fraction * (need.maximum - need.minimum))
 
     def get(self, entity, name: str) -> Need | None:
         return entity.needs.get(name)

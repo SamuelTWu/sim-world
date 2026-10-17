@@ -136,11 +136,8 @@ maximize server capacity without sacrificing deterministic simulation or emergen
 - [ ] 9.11 Preserve determinism when optimizing. Any changes to iteration order, parallelism, floating-point calculations, or RNG usage must be tested against the authoritative simulation's determinism requirements.
 
 
-## Phase 10: Persistence + Accounts
-- [ ] 10.1 Player ids / simple login (name + token to start).
-- [ ] 10.2 Save world: seed + settings + delta log + all pixels (via `to_dict()`).
-- [ ] 10.3 Save per-player data: currency, unlocks, blueprints. -> not needed for currency or blueprints, but maybe for drawings?
-- [ ] 10.4 Autosave on an interval and on shutdown. Load on startup.
+## Phase 10 
+Has been moved to post-server todo. 
 
 ## Phase 11: Desktop Distribution
 - [ ] 11.1 Test full flow with a friend over the internet (host server on a cheap VPS, or port-forward your machine).

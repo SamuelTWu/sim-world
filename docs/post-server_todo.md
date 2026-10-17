@@ -21,7 +21,7 @@ Existing pieces to reuse (confirm names):
 
 ## G. Groundwork (do first; later phases depend on it)
 
-- [] G.1 **Game phase.** Create `server/phase.py`:
+- [X] G.1 **Game phase.** Create `server/phase.py`:
   ```python
   LOBBY, PLACEMENT, PLAYING = "lobby", "placement", "playing"
   COMMAND_PHASES = {"place_colony": {PLACEMENT}, "lobby_*": {LOBBY}}   # default for every other command: {PLAYING}
@@ -751,4 +751,8 @@ Phase T is client-only and independent of the server. Do T.1 to T.8 once the ren
 - Higher terrain priority draws on top; pair-specific art is an override, never special-case ordering.
 - Packs are cosmetic and client-local; nothing in a pack is sent over the network.
 
-
+## Phase 10: Persistence + Accounts
+- [ ] 10.1 Player ids / simple login (name + token to start).
+- [ ] 10.2 Save world: seed + settings + delta log + all pixels (via `to_dict()`).
+- [ ] 10.3 Save per-player data: currency, unlocks, blueprints. -> not needed for currency or blueprints, but maybe for drawings?
+- [ ] 10.4 Autosave on an interval and on shutdown. Load on startup. 

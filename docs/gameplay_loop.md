@@ -26,5 +26,3 @@ Behaviors: can we abstract them? fishing is really attacking fish, if u think ab
 
 types of upgrade: behaviors (fish, trade, attack, explore, spy, etc), attributes (health, stealth, patience), items (fishing rod, sword, etc), structures (fire, storage, wood block, concrete, etc.), blueprints (explorer, swordsman, etc)<- should this be purchased? to reward creative players?
 
-
-

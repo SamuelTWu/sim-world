@@ -4,20 +4,22 @@ from ..entities.entity import StatusEffect, Vec3
 from ..behaviors.behavior import Param, BlueprintError
 from ..core.sim_context import TILE_UNITS
 from ..perception.stimulus import Stimulus
+from .stats import names, valid, read
 
 POPULATION_CAP = 500
 TRIGGERS = {}
 EFFECTS = {}
 RULE_KEYS = {"on", "when", "do", "with", "if", "chance", "cooldown"}
 
-STATS = {
-    "health": lambda e: e.health / max(e.max_health, 1e-9),
-    "energy": lambda e: e.energy / max(e.max_energy, 1e-9),
-    "age": lambda e: e.age,
-    "carried": lambda e: e.carried(),
-}
 
 OPS = {"<": lambda a, b: a < b, ">": lambda a, b: a > b}
+
+class StatParam(Param):
+    def validate(self, owner, key, value):
+        if not valid(value):
+            raise BlueprintError(f"{owner}.{key} must be a stat name such as {names()[:4]}, got {value!r}")
+
+        return value
 
 CONDITION_PARAMS = {
     "stat": Param(default="health", choices=tuple(STATS)),
@@ -376,7 +378,7 @@ def dispatch(runner, trigger, data):
 
             condition = rule["if"]
 
-            if condition is not None and not OPS[condition["op"]](STATS[condition["stat"]](entity), condition["value"]):
+            if condition is not None and not OPS[condition["op"]](read(entity, condition["stat"]), condition["value"]):
                 continue
 
             state["ready"] = entity.age + rule["cooldown"]

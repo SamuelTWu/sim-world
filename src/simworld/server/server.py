@@ -26,6 +26,7 @@ from websockets.asyncio.server import serve
 from websockets.exceptions import ConnectionClosed
 
 from ..shared import protocol as proto
+from ..shared.phase import LOBBY, PHASES, PLAYING
 from ..sim.commands import command as commands
 from ..sim.core.sim_context import TILE_UNITS
 from ..sim.simulation import TICK_DT, TICK_RATE
@@ -84,7 +85,7 @@ MAX_MESSAGES_PER_TICK = 512
 
 
 class Server:
-    def __init__(self, sim, host=DEFAULT_HOST, port=DEFAULT_PORT, max_players=MAX_PLAYERS, stats_interval=STATS_INTERVAL):
+    def __init__(self, sim, host=DEFAULT_HOST, port=DEFAULT_PORT, max_players=MAX_PLAYERS, stats_interval=STATS_INTERVAL, start_phase=LOBBY):
         self.sim = sim
         self.host = host
         self.port = port
@@ -98,11 +99,25 @@ class Server:
         self.per_tick_messages = MAX_MESSAGES_PER_TICK
         commands.load_commands()
         self.commands = commands.CommandContext(sim)
+        self.phase = start_phase
         self.players = {}
         self.grid = SpatialGrid(TILE_UNITS)
         self.next_player_id = 1
         self.sessions = {}  # player_id -> token: who may take that player back after a lost connection (8.4). A player's pixels stay in the world while they are away.
         self.tasks = set()
+
+    @property
+    def phase(self):
+        return self._phase
+
+    @phase.setter
+    def phase(self, value):
+        if value not in PHASES:
+            raise ValueError(f"unknown phase {value!r}")
+
+        self._phase = value
+        self.commands.phase = value
+        self.phase_tick = self.sim.tick
 
     async def run(self):
         async with serve(self.handle_connection, self.host, self.port, max_size=proto.MAX_MESSAGE_BYTES, compression=None):
@@ -506,7 +521,7 @@ def main():
         sim.systems.activity.set_rate(key, near=parts[0], far=parts[1] if len(parts) == 2 else None)
 
     try:
-        server = Server(sim, args.host, args.port, args.max_players, args.stats_interval)
+        server = Server(sim, args.host, args.port, args.max_players, args.stats_interval, start_phase=PLAYING)
         server.per_client_messages = args.max_messages_per_tick or server.per_client_messages
         asyncio.run(server.run())
     except KeyboardInterrupt:

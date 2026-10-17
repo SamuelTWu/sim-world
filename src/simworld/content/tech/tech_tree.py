@@ -40,7 +40,7 @@ from pathlib import Path
 KINDS = ("body", "sense", "action", "reaction")
 PROVIDES = ("traits", "props", "commands", "triggers", "effects", "resources")
 DEFAULT_CURRENCY = "currency"
-DEFAULT_FOLDER = Path(__file__).resolve().parent / "nodes"
+DEFAULT_FOLDER = Path(__file__).resolve().parent 
 
 ID_PATTERN = re.compile(r"^[a-z][a-z0-9_]*$")
 NODE_KEYS = ("name", "description", "kind", "class", "cost", "requires", "provides", "starts_unlocked")

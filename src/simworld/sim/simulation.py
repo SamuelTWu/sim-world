@@ -21,7 +21,7 @@ TICK_DT = 1.0 / TICK_RATE   # 0.05s
 class Simulation:
     def __init__(self, generation_settings=None):
         self.generation_settings = generation_settings or GenerationSettings(
-            width=200,
+            width=100,
             height=100,
             seed=None,
             debug=True,

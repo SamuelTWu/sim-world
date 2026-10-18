@@ -37,6 +37,7 @@ class World:
     deltas: DeltaLog = field(default_factory=DeltaLog, init=False, repr=False)
     # Called as on_tile_change(x, y) after a tile really changed (the simulation sets it to wake sleeping pixels nearby, 9.3). None = nobody listens.
     on_tile_change: object = field(default=None, init=False, repr=False, compare=False)
+    labels: list = field(default_factory=list, init=False, repr=False, compare=False)
 
     # Checksum of the generated terrain, before any changes. Set by finish_generation().
     generation_checksum: str | None = field(default=None, init=False)

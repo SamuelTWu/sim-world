@@ -79,7 +79,13 @@ def run_client(args):
         world = client.world
         png = f"terrain_{args.client}.png"
         write_terrain(ROOT / png, world)
-        result.update(checksum=world.generation_checksum, width=world.width, height=world.height, seed=client.welcome["seed"], png=png)
+        result.update(checksum=world.generation_checksum, 
+                      width=world.width, 
+                      height=world.height, 
+                      seed=client.welcome["seed"], 
+                      png=png, 
+                      mode=client.welcome["settings"].get("mode", "normal"), 
+                      labels=len(world.labels))
 
     print("RESULT " + json.dumps(result), flush=True)
     client.close()
@@ -121,7 +127,17 @@ def file_hash(name):
 
 def orchestrate(args):
     url = f"ws://127.0.0.1:{args.port}"
-    server = subprocess.Popen([sys.executable, "-m", "game.server.server", "--port", str(args.port), "--seed", str(args.seed), "--size", str(args.size)], cwd=ROOT, env=child_env(1))
+    expected = None
+
+    if args.sandbox:
+        from src.simworld.world.generator import GenerationSettings, WorldGenerator
+
+        expected_world = WorldGenerator(GenerationSettings(seed=args.seed, mode="sandbox")).generate()
+        expected_world.finish_generation()
+        expected = (expected_world.width, expected_world.height, expected_world.generation_checksum, len(expected_world.labels))
+    
+    command = [sys.executable, "-m", "server.server", "--port", str(args.port), "--seed", str(args.seed), "--size", str(args.size)] + (["--sandbox"] if args.sandbox else [])
+    server = subprocess.Popen(command, cwd=ROOT, env=child_env(1))
     processes = []
     failures = []
 
@@ -156,8 +172,13 @@ def orchestrate(args):
             if a["player_id"] == b["player_id"]:
                 failures.append("both clients got the same player id")
 
-            if (a["seed"], a["width"], a["height"]) != (args.seed, args.size, args.size):
-                failures.append(f"clients got seed/size {(a['seed'], a['width'], a['height'])}, expected {(args.seed, args.size, args.size)}")
+            size = expected[:2] if expected else (args.size, args.size)
+
+            if (a["seed"], a["width"], a["height"]) != (args.seed, *size):
+                failures.append(f"clients got seed/size {(a['seed'], a['width'], a['height'])}, expected {(args.seed, *size)}")
+
+            if expected and any((r["mode"], r["labels"], r["checksum"]) != ("sandbox", expected[3], expected[2]) for r in (a, b)):
+                failures.append("a client's mode, label count or checksum differs from the sandbox world built in this process")
 
             if not failures:
                 print("OK: both clients verified the server's checksum and their terrain is identical.")
@@ -200,6 +221,7 @@ def main():
     parser.add_argument("--client", help=argparse.SUPPRESS)
     parser.add_argument("--url", help=argparse.SUPPRESS)
     parser.add_argument("--tamper", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--sandbox", action="store_true", help="use the developer sandbox world (one of every tile)")
     args = parser.parse_args()
     sys.exit(run_client(args) if args.client else orchestrate(args))
 

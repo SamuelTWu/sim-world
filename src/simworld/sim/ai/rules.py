@@ -4,7 +4,7 @@ from ..entities.entity import StatusEffect, Vec3
 from ..behaviors.behavior import Param, BlueprintError
 from ..core.sim_context import TILE_UNITS
 from ..perception.stimulus import Stimulus
-from .stats import names, valid, read
+from .stats import names, valid, read, STATS
 
 POPULATION_CAP = 500
 TRIGGERS = {}

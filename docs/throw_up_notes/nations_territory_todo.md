@@ -1,0 +1,1 @@
+create territory map, that is influeced by structures, actions, etc, so nations can organically spread. 

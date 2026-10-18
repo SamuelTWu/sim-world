@@ -489,6 +489,7 @@ def main():
     parser.add_argument("--rate", action="append", default=[], metavar="KEY=NEAR[,FAR]", help="run system KEY once in NEAR ticks (and once in FAR ticks when far), e.g. --rate needs=2,10 --rate think=1,4; keys not listed run every tick; repeatable")
     parser.add_argument("--sleep-ticks", type=int, default=None, help="an idle pixel sleeps and looks around again after this many ticks (0 = pixels never sleep)")
     parser.add_argument("--watch-stdin", action="store_true", help="exit when stdin closes (used by the single-player launcher)")
+    parser.add_argument("--sandbox", action="store_true", help="developer mode: a flat world with one of every tile")
     parser.add_argument("--max-player-pixels", type=int, default=None)
     parser.add_argument("--max-world-pixels", type=int, default=None)
     parser.add_argument("--max-spawns-per-tick", type=int, default=None)
@@ -506,6 +507,9 @@ def main():
 
     if args.size:
         sim.generation_settings.width = sim.generation_settings.height = args.size
+        
+    if args.sandbox:
+        sim.generation_settings.mode = "sandbox"
 
     sim.start_new_game(args.seed)
     sim.systems.limits.configure(args.max_player_pixels, args.max_world_pixels, args.max_spawns_per_tick, None, args.max_thinks_per_tick)

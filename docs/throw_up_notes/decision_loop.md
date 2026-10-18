@@ -1,0 +1,1 @@
+stats -> needs -> decision -> move (flow field) -> arrive (by sensing) -> action -> update -> (stats changed, decide again)

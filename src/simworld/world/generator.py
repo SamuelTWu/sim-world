@@ -8,7 +8,14 @@ from .maps.map_types import MapManager
 from .features.feature_manager import FeatureManager
 from .tile_types import TILE_TYPES
 from .maps.mapModifiers import MODIFIERS, resolve_modifiers, apply_post_modifiers
+from .sandbox import generate_sandbox
 
+MODES = ("normal", "sandbox")
+
+
+def check_mode(mode):
+    if not isinstance(mode, str) or mode not in MODES:
+        raise ValueError(f"Unknown world mode {mode!r}: use one of {', '.join(MODES)}")
 
 @dataclass
 class GenerationSettings:
@@ -17,6 +24,10 @@ class GenerationSettings:
     seed: int | None = None
     debug: bool = False
     tag_modifiers: dict = field(default_factory=dict)
+    mode: str = "normal"
+
+    def __post_init__(self):
+        check_mode(self.mode)
 
 
 @dataclass
@@ -48,7 +59,12 @@ class WorldGenerator:
         self.features = FeatureManager()
 
     def generate(self) -> World:
-        start = time.perf_counter()  # determinism: ok
+        check_mode(self.settings.mode)
+
+        if self.settings.mode == "sandbox":
+            return generate_sandbox(self.settings)
+        
+        start = time.perf_counter()
 
         world = World(
             width=self.settings.width,

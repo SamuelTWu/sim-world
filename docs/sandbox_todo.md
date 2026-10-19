@@ -37,13 +37,13 @@ Four pieces:
 
 ## Part 2: The entity gallery
 
-- [ ] **2.1 Find everything to show**
+- [X] **2.1 Find everything to show**
   **Do:** `sim/dev/catalog.py`: `gallery_entries() -> list[(kind, name, definition)]`, sorted by `(kind, name)`, built by listing the content folders at run time: every blueprint JSON in the entity folder, and, if the folders exist, every resource in `content/resources/` that has an `item` (one item stack) or a `structure` (one block). Skip a file that fails to load and print its name (a bad file must not stop the sandbox).
   **Done when:** the check shows the entries match the files in the folders, and dropping a new JSON file in the folder adds one entry with no code change.
-- [ ] **2.2 Lay them out**
+- [X] **2.2 Lay them out**
   **Do:** `sim/dev/layout.py`: `build_sandbox_entities(sim)`: place one entity per entry in a grid on the far side of the tile gallery, 4 tiles apart, in catalog order, owned by `None`, through `spawn_pixel` (world building, so the limits do not apply). Items and structures use their own creation path when the files exist (`make_item`, `build_structure`). Put the label (kind and name) in `world.labels` or a parallel `entity_labels` list.
   **Done when:** `check_sandbox_entities.py`: exactly one entity per catalog entry, none on top of another, all inside the world.
-- [ ] **2.3 Test units for the player**
+- [X] **2.3 Test units for the player**
   **Do:** also spawn 3 player-owned units near the start corner when a player joins the sandbox (the same hook the normal game uses to give a player their first pixel), so commands can be tried at once.
   **Done when:** a joining player has 3 units and can command them.
 - [ ] **2.4 A calm world**

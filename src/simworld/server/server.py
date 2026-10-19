@@ -105,6 +105,7 @@ class Server:
         self.next_player_id = 1
         self.sessions = {}  # player_id -> token: who may take that player back after a lost connection (8.4). A player's pixels stay in the world while they are away.
         self.tasks = set()
+        self.on_new_player = None
 
     @property
     def phase(self):
@@ -318,6 +319,8 @@ class Server:
         self.players[player_id] = client
         self.send(client, proto.welcome(player_id, self.sim.seed, asdict(self.sim.generation_settings), self.sim.world.generation_checksum, self.sim.tick, TICK_RATE, self.sessions[player_id], resumed))
         print(f"[server] player {player_id} '{client.name}' {'rejoined' if resumed else 'joined'} ({len(self.players)}/{self.max_players})")
+        if not resumed and self.on_new_player is not None:
+            self.on_new_player(player_id)
 
     def handle_view(self, client, message):
         """Remember the part of the world the player's camera shows. A bad rectangle is ignored (the old one stays)."""
@@ -527,6 +530,10 @@ def main():
     try:
         server = Server(sim, args.host, args.port, args.max_players, args.stats_interval, start_phase=PLAYING)
         server.per_client_messages = args.max_messages_per_tick or server.per_client_messages
+        if args.sandbox:
+            from ..sim.dev.start_units import give_test_units
+
+            server.on_new_player = lambda player_id: give_test_units(sim, player_id)
         asyncio.run(server.run())
     except KeyboardInterrupt:
         print("\n[server] stopped")

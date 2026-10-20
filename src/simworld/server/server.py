@@ -507,16 +507,23 @@ def main():
 
     print("[server] generating world...")
     sim = Simulation()
+    seed = args.seed
 
     if args.size:
         sim.generation_settings.width = sim.generation_settings.height = args.size
-        
-    if args.sandbox:
-        sim.generation_settings.mode = "sandbox"
 
-    sim.start_new_game(args.seed)
+    if args.sandbox:
+        from ..sim.dev.sandbox_mode import populate_sandbox, prepare_sandbox
+
+        seed = prepare_sandbox(sim, args.seed)
+        print("[server] SANDBOX MODE" + (" (--size is ignored)" if args.size else ""), flush=True)
+
+    sim.start_new_game(seed)
     sim.systems.limits.configure(args.max_player_pixels, args.max_world_pixels, args.max_spawns_per_tick, None, args.max_thinks_per_tick)
-    
+
+    if args.sandbox:
+        populate_sandbox(sim, args.max_player_pixels, args.max_world_pixels, args.max_spawns_per_tick, args.max_thinks_per_tick)
+        
     for spec in args.rate:
         try:
             key, strides = spec.split("=", 1)

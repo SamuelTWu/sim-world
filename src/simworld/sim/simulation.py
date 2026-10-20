@@ -34,6 +34,8 @@ class Simulation:
         self.seed = None
         self.rng = None  # created in start_new_game, seeded from self.seed
         self.tick = 0    # number of steps since the game started
+        self.sandbox = False #set da sandy boxy mody
+        
         self.owned = {}  # player id -> ids of the pixels that player placed (what the server sends back to that player)
 
         self.generator = WorldGenerator(self.generation_settings)

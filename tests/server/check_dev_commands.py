@@ -4,6 +4,7 @@ import sys
 from types import SimpleNamespace
 
 from src.simworld.server import dev_commands as dev
+from src.simworld.server.dev_time import init_time
 from src.simworld.shared import dev_commands as table
 
 failures = []
@@ -26,8 +27,11 @@ class Counters:
         self.values[name] = self.values.get(name, 0) + amount
 
 
-def fake_server(sandbox):
-    return SimpleNamespace(sim=SimpleNamespace(sandbox=sandbox, systems=SimpleNamespace(counters=Counters())))
+def fake_server(sandbox, paused=False):
+    server = SimpleNamespace(sim=SimpleNamespace(sandbox=sandbox, tick=0, systems=SimpleNamespace(counters=Counters())))
+    init_time(server)
+    server.paused = paused
+    return server
 
 
 def quiet(call):
@@ -45,7 +49,7 @@ for name in sorted(table.DEV_COMMANDS):
     check(f"{name}: refused on a normal server", refused == dev.DevResult(False, "not available"), str(refused))
 
 for name in sorted(dev.DEV_HANDLERS):
-    accepted = dev.run_dev(sandbox, None, name, SAMPLE_ARGS[name])
+    accepted = dev.run_dev(fake_server(True, paused=True), None, name, SAMPLE_ARGS[name])
     check(f"{name}: accepted on a sandbox server", accepted.ok, str(accepted))
 
 for name in sorted(set(table.DEV_COMMANDS) - set(dev.DEV_HANDLERS)):

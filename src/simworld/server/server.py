@@ -37,6 +37,7 @@ from .replication.chunksync import ChunkSync, batches, wanted_chunks
 from .replication.interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visible_ids
 from .replication.transientsync import transient_events_for
 from .dev_commands import run_dev
+from .dev_time import init_time, ticks_to_run
 
 READY_MARKER = "[server] ready"
 DEFAULT_HOST = "127.0.0.1"
@@ -107,6 +108,7 @@ class Server:
         self.sessions = {}  # player_id -> token: who may take that player back after a lost connection (8.4). A player's pixels stay in the world while they are away.
         self.tasks = set()
         self.on_new_player = None
+        init_time(self)
 
     @property
     def phase(self):
@@ -135,7 +137,7 @@ class Server:
             started = t0 = clock()
             self.process_inbox()
             t1 = clock()
-            self.sim.step()
+            self.advance()
             t2 = clock()
             self.grid.sync(self.sim.entity_manager.all())
             t3 = clock()
@@ -157,6 +159,10 @@ class Server:
                 self.metrics.behind()
 
             await asyncio.sleep(max(0.0, next_time - now))
+
+    def advance(self):
+        for _ in range(ticks_to_run(self)):
+            self.sim.step()
 
     def log_stats(self, now):
         """Close the metrics window (metrics.py) and print it. The pixel and projectile counts are taken here, once per window, not every tick."""

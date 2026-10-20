@@ -1,7 +1,8 @@
 import traceback
 from dataclasses import dataclass
 
-from ..shared.dev_commands import DEV_COMMANDS, DevSyntaxError, help_lines, names, usage, validate
+from ..shared.dev_commands import DEV_COMMANDS, STEP_MAX, DevSyntaxError, help_lines, names, usage, validate
+from .dev_time import clear_credit
 
 DEV_HANDLERS = {}
 MAX_TEXT = 1000
@@ -84,3 +85,39 @@ def dev_help(server, client, args):
         return DevResult(False, f"unknown command '{command}'")
 
     return DevResult(True, f"{usage(command)}: {DEV_COMMANDS[command].help}", {"commands": [command]})
+
+
+def clock_data(server):
+    return {"paused": server.paused, "tick": server.sim.tick, "speed": server.speed, "pending": server.pending_steps}
+
+
+@dev_command("pause")
+def dev_pause(server, client, args):
+    server.paused = not server.paused
+    server.pending_steps = 0
+    clear_credit(server)
+    tick = server.sim.tick
+    return DevResult(True, f"paused at tick {tick}" if server.paused else f"running at tick {tick}, speed {server.speed:g}x", clock_data(server))
+
+
+@dev_command("step")
+def dev_step(server, client, args):
+    if not server.paused:
+        return DevResult(False, "pause first: /pause")
+
+    count = args["count"]
+
+    if server.pending_steps + count > STEP_MAX:
+        return DevResult(False, f"too many steps queued ({server.pending_steps}), try again in a moment")
+
+    server.pending_steps += count
+    tick = server.sim.tick
+    return DevResult(True, f"stepping {count} from tick {tick}, paused again at tick {tick + server.pending_steps}", clock_data(server))
+
+
+@dev_command("speed")
+def dev_speed(server, client, args):
+    server.speed = float(args["factor"])
+    clear_credit(server)
+    tick = server.sim.tick
+    return DevResult(True, f"speed {server.speed:g}x, paused at tick {tick}" if server.paused else f"speed {server.speed:g}x at tick {tick}", clock_data(server))

@@ -7,7 +7,8 @@ from src.simworld.server import dev_commands as dev
 from src.simworld.shared import dev_commands as table
 
 failures = []
-SAMPLE_ARGS = {"help": {}}
+CONTEXT = {"selected": 3, "cursor": (4.0, 5.0)}
+SAMPLE_ARGS = {name: table.parse(command.example, CONTEXT)[1] for name, command in table.DEV_COMMANDS.items()}
 
 
 def check(text, condition, detail=""):
@@ -34,19 +35,24 @@ def quiet(call):
         return call()
 
 
-check("every command has a handler and every handler a command", set(table.COMMANDS) == set(dev.DEV_HANDLERS), f"{sorted(table.COMMANDS)} {sorted(dev.DEV_HANDLERS)}")
-check("every command has sample args in this test", set(table.COMMANDS) <= set(SAMPLE_ARGS), f"missing {sorted(set(table.COMMANDS) - set(SAMPLE_ARGS))}")
+check("every handler has a command in the table", set(dev.DEV_HANDLERS) <= set(table.DEV_COMMANDS), f"{sorted(set(dev.DEV_HANDLERS) - set(table.DEV_COMMANDS))}")
+check("help has a handler", "help" in dev.DEV_HANDLERS)
 
 normal, sandbox = fake_server(False), fake_server(True)
 
-for name in sorted(table.COMMANDS):
-    args = SAMPLE_ARGS[name]
-    refused = dev.run_dev(normal, None, name, args)
+for name in sorted(table.DEV_COMMANDS):
+    refused = dev.run_dev(normal, None, name, SAMPLE_ARGS[name])
     check(f"{name}: refused on a normal server", refused == dev.DevResult(False, "not available"), str(refused))
-    accepted = dev.run_dev(sandbox, None, name, args)
+
+for name in sorted(dev.DEV_HANDLERS):
+    accepted = dev.run_dev(sandbox, None, name, SAMPLE_ARGS[name])
     check(f"{name}: accepted on a sandbox server", accepted.ok, str(accepted))
 
-check("each refusal is counted", normal.sim.systems.counters.values.get("dev_refused") == len(table.COMMANDS) and "dev_refused" not in sandbox.sim.systems.counters.values, str(normal.sim.systems.counters.values))
+for name in sorted(set(table.DEV_COMMANDS) - set(dev.DEV_HANDLERS)):
+    waiting = dev.run_dev(sandbox, None, name, SAMPLE_ARGS[name])
+    check(f"{name}: valid but not implemented yet says so", waiting == dev.DevResult(False, "not implemented yet"), str(waiting))
+
+check("each refusal is counted", normal.sim.systems.counters.values.get("dev_refused") == len(table.DEV_COMMANDS) and "dev_refused" not in sandbox.sim.systems.counters.values, str(normal.sim.systems.counters.values))
 
 for flag in (None, 0, 1, "yes", False):
     odd = fake_server(flag)
@@ -73,16 +79,18 @@ for server_name, server in (("normal", normal), ("sandbox", sandbox)):
 
     check(f"bad names and args never raise or succeed ({server_name})", not raised, str(raised[:3]))
 
-for name in table.COMMANDS:
+for name in table.DEV_COMMANDS:
     for args in (None, 5, "x", [], [1], True):
         result = dev.run_dev(sandbox, None, name, args)
         check(f"{name}: non-dict args {args!r} refused", result.ok is False and result.text == "args must be a map", str(result))
 
 check("an unknown name on a sandbox server is named as such", dev.run_dev(sandbox, None, "nope", {}).text == "unknown dev command")
 check("an unexpected argument is refused", "unexpected" in dev.run_dev(sandbox, None, "help", {"x": 1}).text)
-check("help lists the commands", "help" in dev.run_dev(sandbox, None, "help", {}).data["commands"])
+check("help lists the commands", dev.run_dev(sandbox, None, "help", {}).data["commands"] == table.names())
+check("help <command> shows its usage", dev.run_dev(sandbox, None, "help", {"command": "spawn"}).text.startswith("/spawn <blueprint> [x y]"))
+check("help <unknown> says so", dev.run_dev(sandbox, None, "help", {"command": "zzz"}).ok is False)
 
-table.COMMANDS["zz_test"] = table.Spec("test only", {"n": table.Arg(int, low=1, high=5)})
+table.DEV_COMMANDS["zz_test"] = table.Command("test only", (table.Arg("n", "int", low=1, high=5),), "/zz_test 1")
 seen = []
 
 
@@ -119,7 +127,7 @@ try:
     result = dev.run_dev(sandbox, None, "zz_test", {"n": 3})
     check("text is capped and empty data is dropped", len(result.text) == dev.MAX_TEXT and result.data is None)
 finally:
-    del table.COMMANDS["zz_test"]
+    del table.DEV_COMMANDS["zz_test"]
     del dev.DEV_HANDLERS["zz_test"]
 
 try:

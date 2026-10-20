@@ -1,7 +1,7 @@
 import traceback
 from dataclasses import dataclass
 
-from ..shared.dev_commands import COMMANDS, help_lines, validate
+from ..shared.dev_commands import DEV_COMMANDS, DevSyntaxError, help_lines, names, usage, validate
 
 DEV_HANDLERS = {}
 MAX_TEXT = 1000
@@ -16,7 +16,7 @@ class DevResult:
 
 def dev_command(name):
     def register(handler):
-        if name not in COMMANDS:
+        if name not in DEV_COMMANDS:
             raise ValueError(f"dev command {name!r} is not in the table in shared/dev_commands.py")
 
         if name in DEV_HANDLERS:
@@ -54,15 +54,18 @@ def run_dev(server, client, what, args):
             count_refused(server)
             return DevResult(False, "not available")
 
-        handler = DEV_HANDLERS.get(what) if isinstance(what, str) else None
-
-        if handler is None:
+        if not isinstance(what, str) or what not in DEV_COMMANDS:
             return DevResult(False, "unknown dev command")
 
-        clean, problem = validate(what, args)
+        try:
+            clean = validate(what, args)
+        except DevSyntaxError as problem:
+            return DevResult(False, str(problem))
 
-        if problem is not None:
-            return DevResult(False, problem)
+        handler = DEV_HANDLERS.get(what)
+
+        if handler is None:
+            return DevResult(False, "not implemented yet")
 
         return finish(handler(server, client, clean))
     except Exception:
@@ -72,4 +75,12 @@ def run_dev(server, client, what, args):
 
 @dev_command("help")
 def dev_help(server, client, args):
-    return DevResult(True, "\n".join(help_lines()), {"commands": sorted(COMMANDS)})
+    command = args.get("command")
+
+    if command is None:
+        return DevResult(True, "\n".join(help_lines()), {"commands": names()})
+
+    if command not in DEV_COMMANDS:
+        return DevResult(False, f"unknown command '{command}'")
+
+    return DevResult(True, f"{usage(command)}: {DEV_COMMANDS[command].help}", {"commands": [command]})

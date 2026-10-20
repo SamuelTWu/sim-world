@@ -233,6 +233,7 @@ class Renderer:
         self.hints.draw(self.screen, self.camera, self.gui)
         if self.dev_mode and world is not None:
             self.dev_overlay.draw(self.screen, self.camera, getattr(world, "labels", ()), self.view_entities, self.TILE_SIZE)
+            
         self.gui.draw(self.screen)
         self.selection.draw_menu(self.screen)
         pygame.display.flip()

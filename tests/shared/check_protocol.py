@@ -35,6 +35,11 @@ samples = [
     (p.command_result(5), p.SERVER_TYPES),
     (p.order_failed(1, "move", "it could not get there"), p.SERVER_TYPES),
     (p.error(p.COMMAND_REJECTED, "not enough currency", seq=1), p.SERVER_TYPES),
+    (p.dev(1, "help"), p.CLIENT_TYPES),
+    (p.dev(2, "pause", {"on": True}), p.CLIENT_TYPES),
+    (p.dev_result(1, True, "ok"), p.SERVER_TYPES),
+    (p.dev_result(2, True, "listed", {"commands": ["help"]}), p.SERVER_TYPES),
+    (p.dev_result(3, False, "not available"), p.SERVER_TYPES),
 ]
 
 for message, accept in samples:
@@ -44,6 +49,7 @@ for message, accept in samples:
 assert "player_id" not in p.join("sam") and "token" not in p.join("sam") and "resumed" not in p.welcome(1, 1, {}, "x", 0, 20, "t")
 assert p.join("sam", 3)["token"] == ""
 assert "enter" not in p.tick_update(6) and "ack" not in p.tick_update(6)
+assert "data" not in p.dev_result(1, True, "x") and p.dev(1, "help")["args"] == {}
 
 expect_error("set in args", lambda: p.encode(p.command(1, "x", {"tags": {"a"}})))
 expect_error("not a dict", lambda: p.encode(["join"]))
@@ -62,5 +68,10 @@ expect_error("truncated", lambda: p.decode(p.encode(samples[2][0])[:10]))
 expect_error("trailing bytes", lambda: p.decode(p.encode(samples[0][0]) + b"\x00"))
 expect_error("list at top level", lambda: p.decode(msgpack.packb([1, 2, 3])))
 expect_error("oversized", lambda: p.decode(b"\x00" * (p.MAX_MESSAGE_BYTES + 1)))
+expect_error("dev args not a map", lambda: p.encode({"type": "dev", "seq": 1, "what": "help", "args": [1]}))
+expect_error("dev extra field", lambda: p.encode({"type": "dev", "seq": 1, "what": "help", "args": {}, "admin": True}))
+expect_error("dev_result ok must be bool", lambda: p.encode({"type": "dev_result", "seq": 1, "ok": 1, "text": "x"}))
+expect_error("client sends dev_result", lambda: p.decode(p.encode(p.dev_result(1, True, "x")), p.CLIENT_TYPES))
+expect_error("server sends dev", lambda: p.decode(p.encode(p.dev(1, "help")), p.SERVER_TYPES))
 
 print(f"protocol OK ({checks} checks, msgpack {msgpack.version})")

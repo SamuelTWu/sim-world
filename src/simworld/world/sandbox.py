@@ -12,6 +12,8 @@ PITCH = BLOCK + GAP
 SECTION_GAP = 8
 ENTITY_PITCH = 4
 ENTITY_CAPACITY = 256
+REGION_SIZE = 50
+REGION_LABEL = "generated 50x50"
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,8 @@ class Layout:
     entity_top: int
     entity_columns: int
     entity_rows: int
+    region_x: int = 0
+    region_y: int = 0
 
 
 def sorted_tiles():
@@ -48,8 +52,9 @@ def layout_for(tile_count):
     entity_top = MARGIN + rows * PITCH - GAP + SECTION_GAP
     entity_columns = max((width - 2 * MARGIN) // ENTITY_PITCH, 1)
     entity_rows = math.ceil(ENTITY_CAPACITY / entity_columns)
-    height = max(MIN_SIZE, entity_top + entity_rows * ENTITY_PITCH + MARGIN)
-    return Layout(width, height, columns, rows, entity_top, entity_columns, entity_rows)
+    height = max(MIN_SIZE, entity_top + entity_rows * ENTITY_PITCH + MARGIN, 2 * MARGIN + REGION_SIZE)
+    region_x = width + SECTION_GAP
+    return Layout(region_x + REGION_SIZE + MARGIN, height, columns, rows, entity_top, entity_columns, entity_rows, region_x, MARGIN)
 
 
 def tile_blocks(tiles=None):
@@ -58,12 +63,17 @@ def tile_blocks(tiles=None):
     return [(tile, MARGIN + (index % layout.columns) * PITCH, MARGIN + (index // layout.columns) * PITCH) for index, tile in enumerate(tiles)]
 
 
+def region_origin(tile_count=None):
+    layout = layout_for(len(TILE_TYPES) if tile_count is None else tile_count)
+    return layout.region_x, layout.region_y
+
+
 def entity_slots(tile_count=None):
     layout = layout_for(len(TILE_TYPES) if tile_count is None else tile_count)
     return [(MARGIN + (index % layout.entity_columns) * ENTITY_PITCH + ENTITY_PITCH // 2, layout.entity_top + (index // layout.entity_columns) * ENTITY_PITCH + ENTITY_PITCH // 2) for index in range(ENTITY_CAPACITY)]
 
 
-def generate_sandbox(settings):
+def generate_sandbox(settings, region=None):
     tiles = sorted_tiles()
     layout = layout_for(len(tiles))
     world = World(width=layout.width, height=layout.height, default_tile=default_tile())
@@ -74,5 +84,15 @@ def generate_sandbox(settings):
                 world.tiles[y][x] = tile
 
         world.labels.append((x0, y0, tile.name))
+
+    if region is not None:
+        if region.width != REGION_SIZE or region.height != REGION_SIZE:
+            raise ValueError(f"The generated section must be {REGION_SIZE}x{REGION_SIZE}, got {region.width}x{region.height}")
+
+        for y in range(REGION_SIZE):
+            for x in range(REGION_SIZE):
+                world.tiles[layout.region_y + y][layout.region_x + x] = region.tiles[y][x]
+
+    world.labels.append((layout.region_x, layout.region_y, REGION_LABEL))
 
     return world

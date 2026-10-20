@@ -9,13 +9,13 @@ Rules:
 - Optional fields are left out when empty, so read them with .get(key, default).
 - Pixel positions are small ints (POSITION_SCALE). Bump PROTOCOL_VERSION whenever a message changes shape.
 
-Client -> server: join (new player, or rejoin with player_id + token), command, view
-Server -> client: welcome, tick_update, world_delta, entity_info, command_result, order_failed, error
+Client -> server: join (new player, or rejoin with player_id + token), command, view, dev (sandbox servers only)
+Server -> client: welcome, tick_update, world_delta, entity_info, command_result, order_failed, error, dev_result
 """
 import msgpack
 from msgpack.exceptions import UnpackException
 
-PROTOCOL_VERSION = 7
+PROTOCOL_VERSION = 8
 MAX_MESSAGE_BYTES = 1_000_000
 
 # Pixel positions travel as whole numbers of 1/POSITION_SCALE world units ("x": 4400 means 1100.0). A 64-bit float costs 9 bytes
@@ -43,6 +43,8 @@ ENTITY_INFO = "entity_info"
 COMMAND_RESULT = "command_result"
 ORDER_FAILED = "order_failed"
 ERROR = "error"
+DEV = "dev"
+DEV_RESULT = "dev_result"
 
 BAD_MESSAGE = "bad_message"
 BAD_PROTOCOL = "bad_protocol"
@@ -51,8 +53,8 @@ SERVER_FULL = "server_full"
 UNKNOWN_SESSION = "unknown_session"
 COMMAND_REJECTED = "command_rejected"
 
-CLIENT_TYPES = frozenset({JOIN, COMMAND, VIEW})
-SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ENTITY_INFO, COMMAND_RESULT, ORDER_FAILED, ERROR})
+CLIENT_TYPES = frozenset({JOIN, COMMAND, VIEW, DEV})
+SERVER_TYPES = frozenset({WELCOME, TICK_UPDATE, WORLD_DELTA, ENTITY_INFO, COMMAND_RESULT, ORDER_FAILED, ERROR, DEV_RESULT})
 
 # type -> (required fields, optional fields), each as {field: python type}
 SCHEMAS = {
@@ -66,6 +68,8 @@ SCHEMAS = {
     COMMAND_RESULT: ({"seq": int}, {"applied": list, "ignored": list}),
     ORDER_FAILED: ({"id": int, "kind": str, "reason": str}, {}),
     ERROR: ({"code": str, "message": str}, {"seq": int}),
+    DEV: ({"seq": int, "what": str, "args": dict}, {}),
+    DEV_RESULT: ({"seq": int, "ok": bool, "text": str}, {"data": dict}),
 }
 
 
@@ -165,6 +169,17 @@ def error(code, message, seq=None):
 
     return result
 
+def dev(seq, what, args=None):
+    return {"type": DEV, "seq": seq, "what": what, "args": args or {}}
+
+
+def dev_result(seq, ok, text, data=None):
+    message = {"type": DEV_RESULT, "seq": seq, "ok": ok, "text": text}
+
+    if data:
+        message["data"] = data
+
+    return message
 
 def check_type(kind, key, value, expected):
     ok = isinstance(value, int) and not isinstance(value, bool) if expected is int else isinstance(value, expected)

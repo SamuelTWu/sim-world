@@ -36,6 +36,7 @@ from .replication import replication
 from .replication.chunksync import ChunkSync, batches, wanted_chunks
 from .replication.interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visible_ids
 from .replication.transientsync import transient_events_for
+from .dev_commands import run_dev
 
 READY_MARKER = "[server] ready"
 DEFAULT_HOST = "127.0.0.1"
@@ -266,6 +267,8 @@ class Server:
             self.reject(client, proto.NOT_JOINED, "send join first")
         elif message["type"] == proto.VIEW:
             self.handle_view(client, message)
+        elif message["type"] == proto.DEV:
+            self.handle_dev(client, message)
         else:
             self.handle_command(client, message)
 
@@ -373,6 +376,10 @@ class Server:
         else:
             ignored = [[entity_id, reason] for entity_id, reason in list(outcome.ignored.items())[:MAX_RESULT_ITEMS]]
             self.send(client, proto.command_result(message["seq"], outcome.applied[:MAX_RESULT_ITEMS], ignored))
+
+    def handle_dev(self, client, message):
+        result = run_dev(self, client, message["what"], message["args"])
+        self.send(client, proto.dev_result(message["seq"], result.ok, result.text, result.data))
 
     def disconnect(self, client):
         client.closing = True

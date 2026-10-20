@@ -84,36 +84,38 @@ class WorldRenderer:
         if self.world_surface is not None:
             self.world_surface.set_at((x, y), color)
 
-    def render_feature(self, world, features, feature_name):
+    def render_feature(self, world, features, feature_name, offset=(0, 0)):
         feature = features.get(feature_name)
         debug_data = feature.get_debug_data()
 
         if not debug_data:
             return
 
+        offset_x, offset_y = offset
         tile_size = self.camera.scaled_tile_size
         min_x, max_x, min_y, max_y = self.camera.get_visible_tile_bounds(world)
-        min_x, max_x = max(0, min_x), min(world.width - 1, max_x)
-        min_y, max_y = max(0, min_y), min(world.height - 1, max_y)
+        min_x, max_x = max(offset_x, min_x), min(offset_x + len(debug_data[0]) - 1, max_x, world.width - 1)
+        min_y, max_y = max(offset_y, min_y), min(offset_y + len(debug_data) - 1, max_y, world.height - 1)
         highlight_color = self.get_feature_color(feature_name)
 
         for y in range(min_y, max_y + 1):
             for x in range(min_x, max_x + 1):
-                influence = min(1.0, debug_data[y][x])
+                influence = min(1.0, debug_data[y - offset_y][x - offset_x])
                 color = (20, 20, 20) if influence <= 0 else tuple(int(40 + (base - 40) * influence) for base in highlight_color)
                 screen_x, screen_y = self.camera.world_to_screen(x * self.TILE_SIZE, y * self.TILE_SIZE)
                 pygame.draw.rect(self.screen, color, (screen_x, screen_y, tile_size, tile_size))
 
         self.screen.blit(self.font.render(f"Feature: {feature_name}", True, (255, 255, 255)), (10, 10))
 
-    def render_map(self, maps, map_name):
+    def render_map(self, maps, map_name, world=None, offset=(0, 0)):
         map_object = maps.get(map_name)
-        min_x, max_x, min_y, max_y = self.camera.get_visible_tile_bounds(map_object)
+        offset_x, offset_y = offset
+        min_x, max_x, min_y, max_y = self.camera.get_visible_tile_bounds(map_object if world is None else world)
         tile_size = self.camera.scaled_tile_size
 
-        for y in range(max(0, min_y), min(map_object.height - 1, max_y) + 1):
-            for x in range(max(0, min_x), min(map_object.width - 1, max_x) + 1):
-                value = max(0.0, min(1.0, map_object.get(x, y)))
+        for y in range(max(offset_y, min_y), min(offset_y + map_object.height - 1, max_y) + 1):
+            for x in range(max(offset_x, min_x), min(offset_x + map_object.width - 1, max_x) + 1):
+                value = max(0.0, min(1.0, map_object.get(x - offset_x, y - offset_y)))
                 color = int(value * 255)
                 screen_x, screen_y = self.camera.world_to_screen(x * self.TILE_SIZE, y * self.TILE_SIZE)
                 pygame.draw.rect(self.screen, (color, color, color), (screen_x, screen_y, tile_size, tile_size))

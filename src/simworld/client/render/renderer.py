@@ -11,6 +11,7 @@ from .hints import Hints
 from .selection import Selection
 from .sprites import get_sprite, load_sprites
 from ..ui.gui import Gui
+from ...world.sandbox import region_origin
 
 
 MIN_SIZE = (640, 400)
@@ -206,10 +207,12 @@ class Renderer:
         if features:
             self.debug_feature_names = features.names()
 
+        offset = region_origin() if self.dev_mode else (0, 0)
+
         if self.debug_map_index >= 0 and maps and self.debug_map_names:
-            self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index])
+            self.world_renderer.render_map(maps, self.debug_map_names[self.debug_map_index], world, offset)
         elif self.debug_feature_index >= 0 and features and self.debug_feature_names:
-            self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index])
+            self.world_renderer.render_feature(world, features, self.debug_feature_names[self.debug_feature_index], offset)
         else:
             self.world_renderer.render_world(world)
 

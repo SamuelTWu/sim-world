@@ -58,6 +58,7 @@ class Game:
     def start_developer(self):
         self.shutdown()
         self.mode = DEVELOPER
+        self.renderer.set_dev_mode(True)
         self.local_server = LocalServer(sandbox=True)
         self.local_server.start()
 
@@ -78,6 +79,7 @@ class Game:
             self.start_single_player(seed)
 
     def shutdown(self):
+        self.renderer.set_dev_mode(False)
         self.renderer.gui.reset()
         self.renderer.place_requests.clear()
         self.renderer.selection.reset()
@@ -137,6 +139,10 @@ class Game:
 
     def send_saves(self):
         for name, definition in self.renderer.take_save_requests():
+            if self.mode == DEVELOPER:
+                self.renderer.gui.save_failed("Saving is off in developer mode")
+                continue
+            
             seq = self.client.command("save_blueprint", {"name": name, "definition": definition})
 
             if seq is None:

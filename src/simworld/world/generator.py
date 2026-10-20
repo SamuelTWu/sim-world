@@ -9,6 +9,8 @@ from .features.feature_manager import FeatureManager
 from .tile_types import TILE_TYPES
 from .maps.mapModifiers import MODIFIERS, resolve_modifiers, apply_post_modifiers
 from .sandbox import generate_sandbox
+from dataclasses import dataclass, field, replace
+from .sandbox import REGION_SIZE, generate_sandbox
 
 MODES = ("normal", "sandbox")
 
@@ -62,7 +64,11 @@ class WorldGenerator:
         check_mode(self.settings.mode)
 
         if self.settings.mode == "sandbox":
-            return generate_sandbox(self.settings)
+            seed = 0 if self.settings.seed is None else self.settings.seed
+            region = WorldGenerator(replace(self.settings, mode="normal", width=REGION_SIZE, height=REGION_SIZE, seed=seed))
+            world = generate_sandbox(self.settings, region.generate())
+            self.maps, self.features = region.maps, region.features
+            return world
         
         start = time.perf_counter()
 

@@ -12,6 +12,7 @@ from .selection import Selection
 from .sprites import get_sprite, load_sprites
 from ..ui.gui import Gui
 from ...world.sandbox import region_origin
+from ..dev_overlay import DevOverlay
 
 
 MIN_SIZE = (640, 400)
@@ -59,6 +60,9 @@ class Renderer:
         self.debug_map_names = []
         self.debug_feature_index = -1
         self.debug_feature_names = []
+                
+        self.dev_mode = False
+        self.dev_overlay = DevOverlay()
 
     @staticmethod
     def fit_to_desktop(width, height):
@@ -79,6 +83,11 @@ class Renderer:
             self.apply_mode((0, 0), pygame.FULLSCREEN)
         else:
             self.apply_mode(self.windowed_size, pygame.RESIZABLE)
+
+    def set_dev_mode(self, enabled):
+        self.dev_mode = enabled
+        self.debug_map_index = -1
+        self.debug_feature_index = -1
 
     def apply_mode(self, size, flags):
         self.screen = pygame.display.set_mode(size, flags)
@@ -145,15 +154,15 @@ class Renderer:
                     self.toggle_fullscreen()
                     continue
 
-                if event.key == pygame.K_m:
+                if event.key == pygame.K_m and self.dev_mode:
                     self.debug_map_index += 1
                     if self.debug_map_index >= len(self.debug_map_names):
                         self.debug_map_index = -1
-                elif event.key == pygame.K_b:
+                elif event.key == pygame.K_b and self.dev_mode:
                     self.debug_feature_index += 1
                     if self.debug_feature_index >= len(self.debug_feature_names):
                         self.debug_feature_index = -1
-                elif event.key == pygame.K_r:
+                elif event.key == pygame.K_r and self.dev_mode:
                     self.restart_requested = True
                 elif event.key == pygame.K_ESCAPE:
                     self.menu_requested = True
@@ -222,6 +231,8 @@ class Renderer:
         self.selection.draw_world(self.screen, self.view_entities, self.camera)
         self.transient_events.draw(self.screen, self.camera, time.monotonic())
         self.hints.draw(self.screen, self.camera, self.gui)
+        if self.dev_mode and world is not None:
+            self.dev_overlay.draw(self.screen, self.camera, getattr(world, "labels", ()), self.view_entities, self.TILE_SIZE)
         self.gui.draw(self.screen)
         self.selection.draw_menu(self.screen)
         pygame.display.flip()

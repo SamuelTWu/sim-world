@@ -6,6 +6,7 @@
     client = Client(local.url, "player")  # connect like any other client
     ...
     local.stop()
+    LocalServer(sandbox=True) starts a dev sandbox btw
 
 The server listens on 127.0.0.1 only. It runs in its own process so it generates the world in parallel with
 the client, never competes with the game for the interpreter lock, and a server crash cannot take the game down.
@@ -39,8 +40,9 @@ def free_port():
 
 
 class LocalServer:
-    def __init__(self, seed=None, size=None, max_players=4):
+    def __init__(self, seed=None, size=None, max_players=4, sandbox = False):
         self.seed = seed
+        self.sandbox = sandbox
         self.size = size
         self.max_players = max_players
         self.port = None
@@ -63,6 +65,9 @@ class LocalServer:
 
         if self.size is not None:
             command += ["--size", str(self.size)]
+        
+        if self.sandbox:
+            command.append("--sandbox")
 
         self.state = SERVER_STARTING
         self.process = subprocess.Popen(command, cwd=ROOT, env={**os.environ, "PYTHONUNBUFFERED": "1"}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)

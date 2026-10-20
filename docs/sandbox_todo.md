@@ -52,7 +52,7 @@ Four pieces:
 
 ## Part 3: The server and the secret menu
 
-- [ ] **3.1 `--sandbox` on the server**
+- [X] **3.1 `--sandbox` on the server**
   **Do:** in `server/server.py` add `--sandbox`: set `generation_settings.mode = "sandbox"`, use seed 0 unless `--seed` is given, run `build_sandbox_entities`, relax the 9.9 limits (all 0), and set `sim.sandbox = True`. Print `[server] SANDBOX MODE` at start.
   **Done when:** `python -m server.server --sandbox` starts, and a client joins and sees the gallery.
 - [ ] **3.2 `LocalServer(sandbox=True)`**

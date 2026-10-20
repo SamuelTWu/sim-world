@@ -264,6 +264,8 @@ class SystemRunner:
         for index, (entity, step) in enumerate(zip(entities, thinks)):
             if not entity.alive:
                 continue
+            if entity.id in activity.frozen:
+                continue
 
             snaps = entity.has_prop("snap_to_grid") and entity.prop("snap_to_grid") > 0
 

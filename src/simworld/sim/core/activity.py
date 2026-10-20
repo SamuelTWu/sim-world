@@ -71,7 +71,7 @@ class Rate:
 CRITICAL = Rate(1, 1, False)
 
 # what state() returns
-ACTIVE, FAR, ASLEEP, WAKING = 0, 1, 2, 3
+ACTIVE, FAR, ASLEEP, WAKING, FROZEN = 0, 1, 2, 3, 4
 
 
 class Activity:
@@ -95,6 +95,7 @@ class Activity:
         self.sleep_ticks = SLEEP_TICKS
         self.idle_thinks = IDLE_THINKS
         self.sleeping = {}  # pixel id -> tick it wakes by itself
+        self.frozen = set()
         self.idle = {}  # pixel id -> consecutive thinks that found nothing to do
         self.cell_of = {}  # pixel id -> the wake cell it was last seen in
         self.sleepers = {}  # wake cell -> ids of the pixels asleep in it
@@ -158,6 +159,8 @@ class Activity:
 
     def state(self, entity, tick):
         """Where this pixel stands this tick: ACTIVE, FAR, ASLEEP or WAKING (its scheduled wake time has just come). Call once per pixel per tick."""
+        if entity.id in self.frozen:
+            return FROZEN
         until = self.sleeping.get(entity.id)
 
         if until is not None:
@@ -197,6 +200,9 @@ class Activity:
         the time and hands it all over on the pixel's turn (once in `stride` ticks, staggered by id), so the total time is never lost.
         A sleeping pixel is skipped by every key that `sleeps`; a pixel that just woke is handed everything at once.
         """
+        if state == FROZEN:
+            self.skipped[key] = self.skipped.get(key, 0) + 1
+            return None
         if not self.enabled:
             return delta_time
 
@@ -295,7 +301,30 @@ class Activity:
         if self.tiers_on:
             self.awake[entity.id] = max(self.awake.get(entity.id, 0), tick + ticks)
 
+    def freeze(self, entity_id):
+        self.frozen.add(entity_id)
+        self.wake_sleeper(entity_id)
+        self.idle.pop(entity_id, None)
+        self.awake.pop(entity_id, None)
+
+        for bucket in self.owed.values():
+            bucket.pop(entity_id, None)
+
+    def unfreeze(self, entity_id):
+        if entity_id not in self.frozen:
+            return False
+
+        self.frozen.discard(entity_id)
+        self.idle.pop(entity_id, None)
+        self.cell_of.pop(entity_id, None)
+        self.count("unfreezes")
+        return True
+
+    def is_frozen(self, entity_id):
+        return entity_id in self.frozen
+
     def forget(self, entity_id):
+        self.frozen.discard(entity_id)
         self.awake.pop(entity_id, None)
 
         for bucket in self.owed.values():

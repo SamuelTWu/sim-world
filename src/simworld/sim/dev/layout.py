@@ -23,6 +23,13 @@ def create_entity(sim, name, definition, x, y, owner=None):
     return sim.spawn_pixel(blueprint, owner, x, y)
 
 
+def freeze_entity(sim, entity):
+    activity = getattr(getattr(sim, "systems", None), "activity", None)
+
+    if activity is not None:
+        activity.freeze(entity.id)
+
+
 def item_creator(function):
     return lambda sim, name, definition, x, y: function(sim.systems.context, definition["resource"], definition["amount"], x, y)
 
@@ -60,7 +67,7 @@ def resolve_creators():
     return creators
 
 
-def build_sandbox_entities(sim, entries=None, creators=None, tile_units=None):
+def build_sandbox_entities(sim, entries=None, creators=None, tile_units=None, freeze=True):
     entries = gallery_entries() if entries is None else entries
     creators = resolve_creators() if creators is None else creators
     tile_units = default_tile_units() if tile_units is None else tile_units
@@ -92,6 +99,10 @@ def build_sandbox_entities(sim, entries=None, creators=None, tile_units=None):
 
         used += 1
         placed.append((kind, name, result, tile_x, tile_y))
+
+        if freeze and kind == ENTITY:
+            freeze_entity(sim, result)
+
         sim.world.labels.append((tile_x, tile_y, f"{kind} {name}"))
 
     print(f"[sandbox] gallery: {len(placed)} placed, {len(skipped)} skipped", flush=True)

@@ -46,7 +46,7 @@ Four pieces:
 - [X] **2.3 Test units for the player**
   **Do:** also spawn 3 player-owned units near the start corner when a player joins the sandbox (the same hook the normal game uses to give a player their first pixel), so commands can be tried at once.
   **Done when:** a joining player has 3 units and can command them.
-- [ ] **2.4 A calm world**
+- [X] **2.4 A calm world**
   **Do:** in sandbox mode, entities with traits still behave, but the gallery ones start **frozen** (not in the awake set, no decisions) until you wake them from the dev tools (step 4.4). That keeps the gallery still and readable, while you can release one to watch it act.
   **Done when:** after 200 ticks every gallery entity is still where it was; waking one makes it start deciding.
 

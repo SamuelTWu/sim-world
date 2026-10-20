@@ -7,7 +7,7 @@ from src.simworld.shared import protocol as proto
 from src.simworld.client.net.connection import CLOSED, FAILED, GENERATING, READY, Client
 from src.simworld.server.local import SERVER_EXITED, SERVER_FAILED, SERVER_READY, LocalServer
 
-from .menu import JOIN, QUIT, SINGLEPLAYER, Menu
+from .menu import JOIN, QUIT, SINGLEPLAYER, DEVELOPER, Menu
 from src.simworld.client.render.renderer import Renderer
 
 
@@ -34,6 +34,8 @@ class Game:
             self.running = False
         elif action == JOIN:
             self.start_join(value)
+        elif action == DEVELOPER:
+            self.start_developer()
         else:
             self.start_single_player()
 
@@ -53,6 +55,12 @@ class Game:
         self.local_server = LocalServer(seed=self.seed)
         self.local_server.start()
 
+    def start_developer(self):
+        self.shutdown()
+        self.mode = DEVELOPER
+        self.local_server = LocalServer(sandbox=True)
+        self.local_server.start()
+
     def start_join(self, url):
         self.shutdown()
         self.mode = JOIN
@@ -64,6 +72,8 @@ class Game:
     def start_new_game(self, seed=None):
         if self.mode == JOIN:
             self.start_join(self.url)
+        elif self.mode == DEVELOPER:
+            self.start_developer()
         else:
             self.start_single_player(seed)
 

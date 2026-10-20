@@ -9,8 +9,11 @@ from src.simworld.server.server import DEFAULT_PORT
 SINGLEPLAYER = "singleplayer"
 JOIN = "join"
 QUIT = "quit"
+DEVELOPER = "developer"
 
 DEFAULT_ADDRESS = f"127.0.0.1:{DEFAULT_PORT}"
+
+from .dev_secret import SecretBuffer, dev_enabled
 MAX_ADDRESS_LENGTH = 100
 
 BACKGROUND = (20, 22, 28)
@@ -71,6 +74,8 @@ class Menu:
         self.notice = None
         self.selected = 0
         self.fonts = {}
+        self.secret = SecretBuffer()
+        self.dev = dev_enabled()
 
     def font(self, size):
         if size not in self.fonts:
@@ -79,7 +84,7 @@ class Menu:
         return self.fonts[size]
 
     def show(self, notice=None, screen="main"):
-        """Blocks until the player chooses. Returns (SINGLEPLAYER, None), (JOIN, url) or (QUIT, None)."""
+        """Blocks until the player chooses. Returns (SINGLEPLAYER, None), (JOIN, url), (QUIT, None), (DEVELOPER, None)"""
         pygame.font.init()
         self.screen, self.notice, self.selected = screen, notice, 0
         clock = pygame.time.Clock()
@@ -102,7 +107,8 @@ class Menu:
 
     def buttons(self, surface):
         width, height = surface.get_size()
-        labels = [("Singleplayer", SINGLEPLAYER), ("Join", "join_screen"), ("Quit", QUIT)] if self.screen == "main" else [("Connect", "connect"), ("Back", "back")]
+        developer = [("Developer", DEVELOPER)] if self.dev or self.secret.revealed else []
+        labels = [("Singleplayer", SINGLEPLAYER)] + developer + [("Join", "join_screen"), ("Quit", QUIT)] if self.screen == "main" else [("Connect", "connect"), ("Back", "back")]
         top = int(height * (0.40 if self.screen == "main" else 0.56))
         return [(label, action, pygame.Rect((width - 380) // 2, top + index * 80, 380, 60)) for index, (label, action) in enumerate(labels)]
 
@@ -111,7 +117,7 @@ class Menu:
         return pygame.Rect((width - 600) // 2, int(height * 0.42), 600, 56)
 
     def activate(self, action):
-        if action in (SINGLEPLAYER, QUIT):
+        if action in (SINGLEPLAYER, DEVELOPER, QUIT):
             return action, None
 
         if action == "join_screen":
@@ -150,6 +156,9 @@ class Menu:
             return self.activate("connect" if self.screen == "join" else buttons[self.selected][1])
 
         if self.screen == "main":
+            if event.unicode and self.secret.feed(event.unicode, time.monotonic()):
+                self.selected = 1
+                return None
             if event.key == pygame.K_DOWN:
                 self.selected = (self.selected + 1) % len(buttons)
             elif event.key == pygame.K_UP:

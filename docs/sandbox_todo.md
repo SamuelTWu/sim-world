@@ -55,10 +55,10 @@ Four pieces:
 - [X] **3.1 `--sandbox` on the server**
   **Do:** in `server/server.py` add `--sandbox`: set `generation_settings.mode = "sandbox"`, use seed 0 unless `--seed` is given, run `build_sandbox_entities`, relax the 9.9 limits (all 0), and set `sim.sandbox = True`. Print `[server] SANDBOX MODE` at start.
   **Done when:** `python -m server.server --sandbox` starts, and a client joins and sees the gallery.
-- [ ] **3.2 `LocalServer(sandbox=True)`**
+- [X] **3.2 `LocalServer(sandbox=True)`**
   **Do:** add a `sandbox` option to `server/local.py` that adds `--sandbox` to the command line. Singleplayer is unchanged.
   **Done when:** a test starts a local sandbox server and a client reaches READY.
-- [ ] **3.3 The hidden menu entry**
+- [X] **3.3 The hidden menu entry**
   **Do:** in `menu.py`, add a `DEVELOPER` result. The button is **not drawn** by default. It appears when the player types the word `dev` on the main screen (keep a short buffer of the last typed letters, reset after 2 seconds of no typing), or when the environment variable `SIMWORLD_DEV=1` is set. Once revealed, a "Developer" button is added under "Singleplayer". Put the sequence test in a small pure function `secret_typed(buffer)` so it can be checked without pygame.
   **Done when:** `check_menu_secret.py` (no pygame needed): `d`, `e`, `v` typed in order reveals it, other keys and timeouts do not, and the button list on a fresh menu has no Developer entry.
 - [ ] **3.4 Start it from the game**

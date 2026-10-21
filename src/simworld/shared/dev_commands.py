@@ -2,7 +2,7 @@ import math
 import re
 from dataclasses import dataclass
 
-NAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]{1,64}")
+NAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]{1,64}(?::[A-Za-z0-9_.-]{1,64})?")
 MAX_TILE = 1_000_000
 MAX_ID = 1_000_000_000
 STEP_MAX = 100
@@ -43,7 +43,7 @@ DEV_COMMANDS = {
     "pause": Command("pause or resume the simulation", (), "/pause"),
     "step": Command("run this many ticks while paused (1 to 100, default 1)", (Arg("count", "int", optional=True, low=1, high=STEP_MAX, default=1),), "/step 5"),
     "speed": Command("run the simulation at this speed", (Arg("factor", "number", choices=SPEEDS),), "/speed 4"),
-    "spawn": Command("create an entity from a blueprint (at the mouse if no point is given)", (Arg("blueprint", "name"), AT), "/spawn wolf 10 12"),
+    "spawn": Command("create an entity from a blueprint name, item:<resource> or structure:<resource> (at the mouse if no point is given)", (Arg("blueprint", "name"), AT), "/spawn wolf 10 12"),
     "delete": Command("remove an entity (the selected one if no id is given)", (ID,), "/delete 3"),
     "wake": Command("wake a frozen or sleeping entity (the selected one if no id is given)", (ID,), "/wake 3"),
     "inspect": Command("show everything about an entity (the selected one if no id is given)", (ID,), "/inspect 3"),
@@ -111,7 +111,7 @@ def check_value(label, arg, value):
         value = check_number(label, value, low, high)
     elif kind == "name":
         if not isinstance(value, str) or not NAME_PATTERN.fullmatch(value):
-            raise DevSyntaxError(f"'{label}' must be a name: letters, digits, _ - . (up to 64)")
+            raise DevSyntaxError(f"'{label}' must be a name: letters, digits, _ - . (up to 64), optionally item: or structure: in front")
     else:
         raise DevSyntaxError(f"'{label}' has an unknown type")
 

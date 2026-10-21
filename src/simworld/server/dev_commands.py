@@ -2,6 +2,7 @@ import traceback
 from dataclasses import dataclass
 
 from ..shared.dev_commands import DEV_COMMANDS, STEP_MAX, DevSyntaxError, help_lines, names, usage, validate
+from ..sim.dev.tools import DevError, delete_pixel, spawn_thing
 from .dev_time import clear_credit
 
 DEV_HANDLERS = {}
@@ -121,3 +122,23 @@ def dev_speed(server, client, args):
     clear_credit(server)
     tick = server.sim.tick
     return DevResult(True, f"speed {server.speed:g}x, paused at tick {tick}" if server.paused else f"speed {server.speed:g}x at tick {tick}", clock_data(server))
+
+
+@dev_command("spawn")
+def dev_spawn(server, client, args):
+    try:
+        made = spawn_thing(server.sim, args["blueprint"], args["x"], args["y"], getattr(client, "player_id", None))
+    except DevError as problem:
+        return DevResult(False, str(problem))
+
+    return DevResult(True, f"spawned {made.label} #{made.id} at {made.tile_x},{made.tile_y}", {"id": made.id, "x": made.tile_x, "y": made.tile_y})
+
+
+@dev_command("delete")
+def dev_delete(server, client, args):
+    try:
+        gone = delete_pixel(server.sim, args["id"])
+    except DevError as problem:
+        return DevResult(False, str(problem))
+
+    return DevResult(True, f"deleted {gone.label} #{gone.id}", {"id": gone.id})

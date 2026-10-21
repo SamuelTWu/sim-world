@@ -13,6 +13,7 @@ from .sprites import get_sprite, load_sprites
 from ..ui.gui import Gui
 from ...world.sandbox import region_origin
 from ..dev_overlay import DevOverlay
+from ..ui.dev.console import Console
 
 
 MIN_SIZE = (640, 400)
@@ -63,6 +64,7 @@ class Renderer:
                 
         self.dev_mode = False
         self.dev_overlay = DevOverlay()
+        self.console = Console()
 
     @staticmethod
     def fit_to_desktop(width, height):
@@ -88,6 +90,9 @@ class Renderer:
         self.dev_mode = enabled
         self.debug_map_index = -1
         self.debug_feature_index = -1
+
+        if not enabled:
+            self.console.reset()
 
     def apply_mode(self, size, flags):
         self.screen = pygame.display.set_mode(size, flags)
@@ -128,6 +133,32 @@ class Renderer:
         requests, self.place_requests = self.place_requests, []
         return requests
 
+    def gui_area(self):
+        try:
+            area = self.gui.area()
+        except Exception:
+            return None
+
+        return area if isinstance(area, pygame.Rect) else None
+
+    def gui_typing(self):
+        return bool(getattr(getattr(self.gui, "sidebar", None), "typing", False))
+
+    def dev_context(self):
+        area = self.gui_area()
+        mouse = pygame.mouse.get_pos()
+        ids = getattr(self.selection, "ids", None)
+        cursor = None
+
+        if area is None or area.collidepoint(mouse):
+            x, y = self.screen_to_world(mouse)
+            cursor = (x / self.TILE_SIZE, y / self.TILE_SIZE)
+
+        return {"selected": min(ids) if ids else None, "cursor": cursor}
+
+    def take_dev_requests(self):
+        return self.console.take_requests()
+
     def take_act_requests(self):
         """Orders the player clicked since the last call, as the arguments of the `act` command. The game sends them."""
         return self.selection.take_requests()
@@ -139,6 +170,9 @@ class Renderer:
 
             if event.type in RESIZE_EVENTS:
                 self.resized()
+
+            if self.console.handle_event(event, self.dev_context, time.monotonic(), self.gui_typing()):
+                continue
 
             if self.selection.drag is not None and event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP) and self.selection.handle_event(event, self.view_entities, self.player_id, self.camera, self.screen_to_world):
                 continue
@@ -192,7 +226,9 @@ class Renderer:
         self.transient_events.add(events, time.monotonic())
 
     def update(self, delta_time):
-        self.camera.update(delta_time)
+        if not self.console.is_open:
+            self.camera.update(delta_time)
+
         self.gui.update()
 
     def render(self, view):
@@ -236,6 +272,8 @@ class Renderer:
             
         self.gui.draw(self.screen)
         self.selection.draw_menu(self.screen)
+        self.console.draw(self.screen, time.monotonic(), self.gui_area())
+        
         pygame.display.flip()
 
     def tick(self, fps=60):

@@ -8,7 +8,7 @@ from src.simworld.server.dev_time import init_time
 from src.simworld.shared import dev_commands as table
 
 failures = []
-NEEDS_REAL_WORLD = {"spawn", "delete"}
+NEEDS_REAL_WORLD = {"spawn", "delete", "wake", "inspect", "tile"}
 CONTEXT = {"selected": 3, "cursor": (4.0, 5.0)}
 SAMPLE_ARGS = {name: table.parse(command.example, CONTEXT)[1] for name, command in table.DEV_COMMANDS.items()}
 
@@ -29,7 +29,7 @@ class Counters:
 
 
 def fake_server(sandbox, paused=False):
-    server = SimpleNamespace(sim=SimpleNamespace(sandbox=sandbox, tick=0, world=SimpleNamespace(width=100, height=100), entity_manager=SimpleNamespace(get=lambda pixel_id: None, kill=lambda pixel_id: None), systems=SimpleNamespace(counters=Counters())))
+    server = SimpleNamespace(sim=SimpleNamespace(sandbox=sandbox, tick=0, world=SimpleNamespace(width=100, height=100, get_tile=lambda x, y: SimpleNamespace(name="grass"), set_tile=lambda x, y, tile: True), entity_manager=SimpleNamespace(get=lambda pixel_id: None, kill=lambda pixel_id: None), systems=SimpleNamespace(counters=Counters())))
     init_time(server)
     server.paused = paused
     return server

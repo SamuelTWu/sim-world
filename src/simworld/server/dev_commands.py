@@ -2,7 +2,8 @@ import traceback
 from dataclasses import dataclass
 
 from ..shared.dev_commands import DEV_COMMANDS, STEP_MAX, DevSyntaxError, help_lines, names, usage, validate
-from ..sim.dev.tools import DevError, delete_pixel, spawn_thing
+from ..sim.dev.catalog import catalog_names
+from ..sim.dev.tools import DevError, catalog_text, delete_pixel, inspect_pixel, paint_tile, spawn_thing, wake_pixel
 from .dev_time import clear_credit
 
 DEV_HANDLERS = {}
@@ -142,3 +143,40 @@ def dev_delete(server, client, args):
         return DevResult(False, str(problem))
 
     return DevResult(True, f"deleted {gone.label} #{gone.id}", {"id": gone.id})
+
+
+@dev_command("wake")
+def dev_wake(server, client, args):
+    try:
+        woke = wake_pixel(server.sim, args["id"])
+    except DevError as problem:
+        return DevResult(False, str(problem))
+
+    return DevResult(True, f"woke {woke.label} #{woke.id}" if woke.was_frozen else f"{woke.label} #{woke.id} was not frozen", {"id": woke.id, "was_frozen": woke.was_frozen})
+
+
+@dev_command("inspect")
+def dev_inspect(server, client, args):
+    try:
+        found = inspect_pixel(server.sim, args["id"])
+    except DevError as problem:
+        return DevResult(False, str(problem))
+
+    return DevResult(True, found.text, found.data)
+
+
+@dev_command("tile")
+def dev_tile(server, client, args):
+    try:
+        painted = paint_tile(server.sim, args["name"], args["x"], args["y"])
+    except DevError as problem:
+        return DevResult(False, str(problem))
+
+    text = f"painted {painted.name} at {painted.tile_x},{painted.tile_y} (was {painted.before})" if painted.changed else f"{painted.tile_x},{painted.tile_y} is already {painted.name}"
+    return DevResult(True, text, {"x": painted.tile_x, "y": painted.tile_y, "tile": painted.name, "changed": painted.changed})
+
+
+@dev_command("catalog")
+def dev_catalog(server, client, args):
+    found = catalog_names()
+    return DevResult(True, catalog_text(found), found)

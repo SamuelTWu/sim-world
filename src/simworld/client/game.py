@@ -26,6 +26,7 @@ class Game:
         self.sent = {}
         self.view_sent = None
         self.view_time = 0.0
+        self.catalog_seq = None
 
     def open_menu(self, notice=None, screen="main"):
         self.shutdown()
@@ -79,6 +80,8 @@ class Game:
             self.start_single_player(seed)
 
     def shutdown(self):
+        self.catalog_seq = None
+        self.renderer.console.reset()
         self.renderer.set_dev_mode(False)
         self.renderer.gui.reset()
         self.renderer.place_requests.clear()
@@ -187,6 +190,10 @@ class Game:
                 self.renderer.gui.notify(f"Pixel #{message['id']} could not {message['kind']}: {message['reason']}")
                 continue
 
+            if message["type"] == proto.DEV_RESULT:
+                self.dev_result(message)
+                continue
+
             if message["type"] == proto.ERROR:
                 what = self.sent.pop(message.get("seq"), None)
                 self.renderer.hints.result(message.get("seq"), False)
@@ -254,6 +261,7 @@ class Game:
                 status = self.connection_status()
                 if status is not None:
                     session = (self.client, self.local_server)
+                    self.sync_console()
                     self.running = self.handle_loading_events()
                     if self.running and session == (self.client, self.local_server):
                         self.draw_status(status)
@@ -275,6 +283,7 @@ class Game:
                 self.send_saves()
                 self.send_inspects()
                 self.send_edits()
+                self.send_devs()
                 self.show_errors(self.client.poll())
                 self.renderer.add_transient_events(self.client.take_transient_events())
                 self.renderer.update(delta_time)
@@ -282,3 +291,35 @@ class Game:
         finally:
             self.shutdown()
             self.renderer.close()
+
+    def sync_console(self):
+        if self.client is None:
+            self.renderer.console.set_enabled(False)
+            return
+
+        settings = (self.client.welcome or {}).get("settings") or {}
+        enabled = self.mode == DEVELOPER and settings.get("mode") == "sandbox"
+        self.renderer.console.set_enabled(enabled)
+
+        if enabled and self.catalog_seq is None:
+            self.catalog_seq = self.client.dev("catalog")
+
+            if self.catalog_seq is not None:
+                self.sent[self.catalog_seq] = "catalog"
+
+    def send_devs(self):
+        for what, args in self.renderer.take_dev_requests():
+            seq = self.client.dev(what, args)
+
+            if seq is None:
+                self.renderer.console.add_line("Could not send: the connection is not usable", "error", time.monotonic())
+            else:
+                self.sent[seq] = "dev"
+
+    def dev_result(self, message):
+        what = self.sent.pop(message["seq"], None)
+
+        if what == "catalog" and message["ok"]:
+            self.renderer.console.set_catalog(message.get("data"))
+        else:
+            self.renderer.console.add_result(message["text"], message["ok"], time.monotonic())

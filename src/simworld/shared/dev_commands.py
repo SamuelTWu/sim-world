@@ -27,6 +27,7 @@ class Arg:
     high: float | None = None
     default: object = None
     source: str | None = None
+    complete: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,13 +44,13 @@ DEV_COMMANDS = {
     "pause": Command("pause or resume the simulation", (), "/pause"),
     "step": Command("run this many ticks while paused (1 to 100, default 1)", (Arg("count", "int", optional=True, low=1, high=STEP_MAX, default=1),), "/step 5"),
     "speed": Command("run the simulation at this speed", (Arg("factor", "number", choices=SPEEDS),), "/speed 4"),
-    "spawn": Command("create an entity from a blueprint name, item:<resource> or structure:<resource> (at the mouse if no point is given)", (Arg("blueprint", "name"), AT), "/spawn wolf 10 12"),
+    "spawn": Command("create an entity from a blueprint name, item:<resource> or structure:<resource> (at the mouse if no point is given)", (Arg("blueprint", "name", complete="blueprint"), AT), "/spawn wolf 10 12"),
     "delete": Command("remove an entity (the selected one if no id is given)", (ID,), "/delete 3"),
     "wake": Command("wake a frozen or sleeping entity (the selected one if no id is given)", (ID,), "/wake 3"),
     "inspect": Command("show everything about an entity (the selected one if no id is given)", (ID,), "/inspect 3"),
-    "tile": Command("paint a tile (at the mouse if no point is given)", (Arg("name", "name"), AT), "/tile stone 4 4"),
+    "tile": Command("paint a tile (at the mouse if no point is given)", (Arg("name", "name", complete="tile"), AT), "/tile stone 4 4"),
     "catalog": Command("list the blueprints and tiles", (), "/catalog"),
-    "help": Command("list the commands, or show one", (Arg("command", "name", optional=True),), "/help spawn"),
+    "help": Command("list the commands, or show one", (Arg("command", "name", optional=True, complete="command"),), "/help spawn"),
 }
 
 

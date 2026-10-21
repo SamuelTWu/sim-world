@@ -86,6 +86,18 @@ def load_gallery(entity_dir=ENTITY_DIR, resource_dir=RESOURCE_DIR):
     entries.sort(key=lambda entry: (entry[0], entry[1]))
     return entries, skipped
 
+def catalog_names(entity_dir=ENTITY_DIR, resource_dir=RESOURCE_DIR, tiles=None):
+    if tiles is None:
+        from ...world.tile_types import TILE_TYPES as tiles
+
+    entries, _ = load_gallery(entity_dir, resource_dir)
+    return {
+        "blueprints": sorted({name for kind, name, _ in entries if kind == ENTITY}),
+        "tiles": sorted({tile.name for tile in tiles.values()}),
+        "resources": sorted({name for kind, name, _ in entries if kind in (ITEM, STRUCTURE)}),
+        "items": sorted({name for kind, name, _ in entries if kind == ITEM}),
+        "structures": sorted({name for kind, name, _ in entries if kind == STRUCTURE}),
+    }
 
 def gallery_entries(entity_dir=ENTITY_DIR, resource_dir=RESOURCE_DIR):
     entries, skipped = load_gallery(entity_dir, resource_dir)

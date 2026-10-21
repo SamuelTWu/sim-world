@@ -229,6 +229,10 @@ class Client:
         self.seq += 1
         return self.seq if self.send(proto.command(self.seq, name, args)) else None
 
+    def dev(self, what, args=None):
+        self.seq += 1
+        return self.seq if self.send(proto.dev(self.seq, what, args)) else None
+
     def close(self):
         self.closing = True
 

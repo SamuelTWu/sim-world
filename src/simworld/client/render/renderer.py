@@ -14,6 +14,7 @@ from ..ui.gui import Gui
 from ...world.sandbox import region_origin
 from ..dev_overlay import DevOverlay
 from ..ui.dev.console import Console
+from ..ui.dev.dev_panel import DevPanel
 
 
 MIN_SIZE = (640, 400)
@@ -65,6 +66,8 @@ class Renderer:
         self.dev_mode = False
         self.dev_overlay = DevOverlay()
         self.console = Console()
+        self.dev_panel = DevPanel(self)
+        self.world_labels = ()
 
     @staticmethod
     def fit_to_desktop(width, height):
@@ -93,6 +96,10 @@ class Renderer:
 
         if not enabled:
             self.console.reset()
+        if not enabled:
+            self.reset_dev_tools()
+
+        
 
     def apply_mode(self, size, flags):
         self.screen = pygame.display.set_mode(size, flags)
@@ -156,8 +163,38 @@ class Renderer:
 
         return {"selected": min(ids) if ids else None, "cursor": cursor}
 
+    def over_map(self, pos):
+        area = self.gui_area()
+
+        if area is None:
+            return True
+
+        try:
+            return bool(self.gui.over_map(pos, area))
+        except Exception:
+            return area.collidepoint(pos)
+
+    def entity_radius(self, entity):
+        return self.selection.ring_radius(self.camera, entity)
+
+    def set_dev_tools(self, enabled):
+        self.console.set_enabled(enabled)
+        self.dev_panel.set_enabled(enabled)
+
+    def reset_dev_tools(self):
+        self.console.reset()
+        self.dev_panel.reset()
+
+    def set_dev_catalog(self, data):
+        self.console.set_catalog(data)
+        self.dev_panel.set_catalog(data)
+
+    def dev_result(self, what, message):
+        self.console.add_result(message["text"], message["ok"], time.monotonic())
+        self.dev_panel.note_result(what, message)
+
     def take_dev_requests(self):
-        return self.console.take_requests()
+        return self.console.take_requests() + self.dev_panel.take_requests()
 
     def take_act_requests(self):
         """Orders the player clicked since the last call, as the arguments of the `act` command. The game sends them."""
@@ -172,6 +209,9 @@ class Renderer:
                 self.resized()
 
             if self.console.handle_event(event, self.dev_context, time.monotonic(), self.gui_typing()):
+                continue
+
+            if self.dev_panel.handle_event(event, time.monotonic()):
                 continue
 
             if self.selection.drag is not None and event.type in (pygame.MOUSEMOTION, pygame.MOUSEBUTTONUP) and self.selection.handle_event(event, self.view_entities, self.player_id, self.camera, self.screen_to_world):
@@ -243,6 +283,7 @@ class Renderer:
             if world_size != self._fitted_world_size:
                 self.camera.fit_world(*world_size)
                 self._fitted_world_size = world_size
+                self.world_labels = getattr(world, "labels", ())
 
         self.screen.fill((0, 0, 0))
 
@@ -272,8 +313,9 @@ class Renderer:
             
         self.gui.draw(self.screen)
         self.selection.draw_menu(self.screen)
+        self.dev_panel.draw(self.screen, time.monotonic())
         self.console.draw(self.screen, time.monotonic(), self.gui_area())
-        
+
         pygame.display.flip()
 
     def tick(self, fps=60):

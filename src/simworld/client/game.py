@@ -81,7 +81,7 @@ class Game:
 
     def shutdown(self):
         self.catalog_seq = None
-        self.renderer.console.reset()
+        self.renderer.reset_dev_tools()
         self.renderer.set_dev_mode(False)
         self.renderer.gui.reset()
         self.renderer.place_requests.clear()
@@ -294,12 +294,12 @@ class Game:
 
     def sync_console(self):
         if self.client is None:
-            self.renderer.console.set_enabled(False)
+            self.renderer.set_dev_tools(False)
             return
 
         settings = (self.client.welcome or {}).get("settings") or {}
         enabled = self.mode == DEVELOPER and settings.get("mode") == "sandbox"
-        self.renderer.console.set_enabled(enabled)
+        self.renderer.set_dev_tools(enabled)
 
         if enabled and self.catalog_seq is None:
             self.catalog_seq = self.client.dev("catalog")
@@ -307,19 +307,22 @@ class Game:
             if self.catalog_seq is not None:
                 self.sent[self.catalog_seq] = "catalog"
 
+    def send_dev(self, what, args):
+        seq = self.client.dev(what, args)
+
+        if seq is None:
+            self.renderer.console.add_line("Could not send: the connection is not usable", "error", time.monotonic())
+        else:
+            self.sent[seq] = f"dev:{what}"
+
     def send_devs(self):
         for what, args in self.renderer.take_dev_requests():
-            seq = self.client.dev(what, args)
-
-            if seq is None:
-                self.renderer.console.add_line("Could not send: the connection is not usable", "error", time.monotonic())
-            else:
-                self.sent[seq] = "dev"
+            self.send_dev(what, args)
 
     def dev_result(self, message):
-        what = self.sent.pop(message["seq"], None)
+        tag = self.sent.pop(message["seq"], None) or ""
 
-        if what == "catalog" and message["ok"]:
-            self.renderer.console.set_catalog(message.get("data"))
+        if tag == "catalog" and message["ok"]:
+            self.renderer.set_dev_catalog(message.get("data"))
         else:
-            self.renderer.console.add_result(message["text"], message["ok"], time.monotonic())
+            self.renderer.dev_result(tag[4:] if tag.startswith("dev:") else None, message)

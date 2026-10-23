@@ -262,4 +262,3 @@ The README and the phase checklists use the original names. Translate with:
 
 
 Known bugs:
-painting tiles in dev places tiles but render doesnt change

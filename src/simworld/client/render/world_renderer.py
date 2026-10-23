@@ -16,6 +16,7 @@ class WorldRenderer:
         self.debug_feature_colors = {}
         self.images = {}
         self.scaled_images = {}
+        self.drawn_tiles = None
 
     def render_world(self, world):
         if self.cached_world is not world:
@@ -27,6 +28,7 @@ class WorldRenderer:
         max_x, max_y = min(world.width - 1, max_x), min(world.height - 1, max_y)
 
         if max_x >= min_x and max_y >= min_y:
+            self.sync_surface(world, min_y, max_y)
             columns, rows = max_x - min_x + 1, max_y - min_y + 1
             tile_size = self.camera.scaled_tile_size
             visible = self.world_surface.subsurface((min_x, min_y, columns, rows))
@@ -49,8 +51,20 @@ class WorldRenderer:
             for x in range(world.width):
                 tile = world.get_tile(x, y)
                 surface.set_at((x, y), tile.color if tile else (0, 0, 0))
-
+        self.drawn_tiles = [list(row) for row in world.tiles]
         return surface
+
+    def sync_surface(self, world, min_y, max_y):
+        for y in range(min_y, max_y + 1):
+            row, seen = world.tiles[y], self.drawn_tiles[y]
+
+            if row == seen:
+                continue
+
+            for x, tile in enumerate(row):
+                if tile is not seen[x]:
+                    self.world_surface.set_at((x, y), tile.color if tile else (0, 0, 0))
+                    seen[x] = tile
 
     def draw_sprite(self, name, x, y, size):
         key = (name, size)

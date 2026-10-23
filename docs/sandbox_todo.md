@@ -107,7 +107,7 @@ Where things live:
 - [X] **4.9 The panel**
   **Do:** `client/ui/dev/dev_panel.py` (pygame): a single column opened with F3 in developer mode only. Buttons: Pause or Resume, Step, Speed (0.25x, 1x, 4x), Spawn (a blueprint picker from the catalog, then click to place), Delete (click an entity), Wake (selected), Inspect (selected, shows the text next to it), Paint tile (a tile picker, click or drag to paint), and a "Go to" row (Tiles, Entities, Generated, Start) that moves the camera to the matching label from `world.labels` (client only, nothing is sent). Every button that changes the world builds the same `(what, args)` as the typed command and sends it through the one function the console uses (`send_dev(what, args)`), so there is one path, and each press also echoes the equivalent `/` command into the console log.
   **Done when:** every tool works from the panel, each press shows its typed equivalent in the log, and the panel cannot be opened in a normal game.
-- [ ] **4.10 Map and feature toggles**
+- [X] **4.10 Map and feature toggles**
   **Do:** inspect how the generator picks features and reads maps first, and use what exists. Add `sim.sandbox_gen = {"seed": n, "disabled_features": set(), "disabled_maps": set()}` (runtime only, nothing is saved) and make the generator read it for the 3.6 section only: a disabled feature is skipped by the selection strategy, a disabled map reads as its neutral value. With nothing disabled the result is identical to 3.6, and a normal world's checksum is unchanged. Command `dev gen {action, name, value}` with typed forms `/gen list`, `/gen feature <name> on|off`, `/gen map <name> on|off`, `/gen seed <n>`. Every change regenerates the nxn (can also set) section and writes only the tiles that differ through `world.set_tile` (`regen_section` in `sim/dev/tools.py`), so clients get ordinary deltas and a reconnecting client replays them. Add the `/gen` forms to the table in 4.2. `/gen list` returns the current seed and each feature and map with its on or off state. The toggles are refused outside a sandbox by the 4.1 gate, which is what keeps them dev-only.
   **Done when:** `tests/server/check_dev_gen.py`: turning a feature off removes its tiles from the section and turning it on brings them back; the same toggles and seed give the same tiles in two runs; only differing tiles are written; a normal server refuses `gen`; the checksum after a reconnect still passes.
 - [ ] **4.11 Generation section in the panel**
@@ -115,6 +115,7 @@ Where things live:
   **Done when:** toggling a box in the panel changes the generated section on screen and the typed equivalent appears in the log.
 
 ## Part 5: Checks and docs
+## EH IM SKIPPING THIS FOR NOW
 
 - [ ] **5.1 Checks in the runner.** Add `check_sandbox_world`, `check_sandbox_entities`, `check_menu_secret` and `check_dev_commands` to `tools/run_checks.py`. They must also pass in the determinism audit (two hash seeds).
 - [ ] **5.2 Every blueprint spawns.** Add one check that spawns every catalog entry in a sandbox simulation, runs 100 ticks, and reports any entry that raises (a quick way to catch a broken blueprint after any change).

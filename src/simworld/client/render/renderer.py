@@ -189,8 +189,10 @@ class Renderer:
         self.console.set_catalog(data)
         self.dev_panel.set_catalog(data)
 
-    def dev_result(self, what, message):
-        self.console.add_result(message["text"], message["ok"], time.monotonic())
+    def dev_result(self, what, message, quiet=False):
+        if not quiet or not message["ok"]:
+            self.console.add_result(message["text"], message["ok"], time.monotonic())
+
         self.dev_panel.note_result(what, message)
 
     def take_dev_requests(self):

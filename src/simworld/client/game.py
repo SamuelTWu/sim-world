@@ -308,23 +308,24 @@ class Game:
             if self.catalog_seq is not None:
                 self.sent[self.catalog_seq] = "catalog"
 
-    def send_dev(self, what, args):
+    def send_dev(self, what, args, quiet=False):
         seq = self.client.dev(what, args)
 
         if seq is None:
             self.renderer.console.add_line("Could not send: the connection is not usable", "error", time.monotonic())
         else:
-            self.sent[seq] = f"dev:{what}"
+            self.sent[seq] = f"{'devq' if quiet else 'dev'}:{what}"
 
     def send_devs(self):
-        for what, args in self.renderer.take_dev_requests():
-            self.send_dev(what, args)
+        for what, args, *quiet in self.renderer.take_dev_requests():
+            self.send_dev(what, args, bool(quiet and quiet[0]))
 
     def dev_result(self, message):
         tag = self.sent.pop(message["seq"], None) or ""
+        kind, _, what = tag.partition(":")
 
         if tag in ("catalog", "dev:catalog") and message["ok"] and isinstance(message.get("data"), dict):
             self.renderer.set_dev_catalog(message.get("data"))
 
         if tag != "catalog" or not message["ok"]:
-            self.renderer.dev_result(tag[4:] if tag.startswith("dev:") else None, message)
+            self.renderer.dev_result(what if kind in ("dev", "devq") else None, message, kind == "devq")

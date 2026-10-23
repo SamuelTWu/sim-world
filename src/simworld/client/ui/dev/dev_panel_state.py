@@ -1,4 +1,5 @@
 import math
+import random
 from collections import namedtuple
 
 from ....shared.dev_commands import NEEDS_SELECTION, SPEEDS, DevSyntaxError, parse, shown
@@ -12,6 +13,8 @@ GOTO = (("tiles", "Tiles"), ("entities", "Entities"), ("generated", "Generated")
 START_SPAN = 20
 START_SHIFT = (2, -3)
 MAX_INSPECT = 1000
+MAX_SEED = 2**32 - 1
+MAX_GEN_ERROR = 60
 
 
 def is_id(value):
@@ -82,6 +85,11 @@ class PanelState:
         self.inspect = None
         self.blueprint = None
         self.tile = None
+        self.gen = None
+        self.gen_error = None
+        self.gen_asked = False
+        self.gen_scroll = 0
+        self.next_seed = lambda: random.randrange(MAX_SEED + 1)
         self.close()
 
     def close(self):
@@ -128,6 +136,43 @@ class PanelState:
             [(f"goto:{name}", label, False) for name, label in GOTO],
         ]
 
+    def gen_request(self):
+        if not self.enabled or not self.open or self.gen is not None or self.gen_asked:
+            return None
+
+        self.gen_asked = True
+        return ("gen", {"action": "list"}, True)
+
+    def gen_rows(self):
+        if self.gen is None:
+            return [("seed", None, "Seed ?", False), ("heading", None, self.gen_error or "loading...", False)]
+
+        rows = [("seed", "gen:seed", f"Seed {self.gen['seed']}", False), ("heading", None, "Features", False)]
+        rows += [("check", f"gen:feature:{name}", name, on) for name, on in self.gen["features"].items()]
+        rows += [("heading", None, "Maps", False)]
+        rows += [("check", f"gen:map:{name}", name, on) for name, on in self.gen["maps"].items()]
+        return rows
+
+    def press_gen(self, key):
+        if self.gen is None:
+            return Result()
+
+        if key == "gen:seed":
+            seed = self.next_seed()
+
+            if seed == self.gen["seed"]:
+                seed = (seed + 1) % (MAX_SEED + 1)
+
+            return self.send(f"/gen seed {seed}")
+
+        kind, _, name = key[4:].partition(":")
+        known = self.gen["features"] if kind == "feature" else self.gen["maps"] if kind == "map" else None
+
+        if known is None or name not in known:
+            return Result()
+
+        return self.send(f"/gen {kind} {name} {'off' if known[name] else 'on'}")
+
     def send(self, text):
         lines = [(f"> {text}", "echo")]
 
@@ -141,6 +186,9 @@ class PanelState:
     def press(self, key, context=None):
         if key.startswith("goto:"):
             return Result(goto=key[5:])
+
+        if key.startswith("gen:"):
+            return self.press_gen(key)
 
         if key in ("spawn", "paint"):
             return self.toggle_tool(key)
@@ -246,6 +294,16 @@ class PanelState:
 
         return self.selected if self.selected is not None else fallback
 
+    def take_gen(self, data):
+        features, maps, seed = data.get("features"), data.get("maps"), data.get("seed")
+
+        if not isinstance(features, dict) or not isinstance(maps, dict) or not is_id(seed):
+            return
+
+        clean = lambda values: {name: value for name, value in values.items() if isinstance(name, str) and isinstance(value, bool)}
+        self.gen = {"seed": seed, "features": clean(features), "maps": clean(maps)}
+        self.gen_error = None
+
     def hint(self):
         if self.mode == "spawn":
             return f"Click the map to place {self.blueprint}. Esc stops."
@@ -261,7 +319,15 @@ class PanelState:
     def note_result(self, what, message):
         data = message.get("data") if isinstance(message, dict) else None
 
+        if what == "gen" and isinstance(message, dict) and not message.get("ok") and self.gen is None:
+            self.gen_error = str(message.get("text", "no section"))[:MAX_GEN_ERROR]
+            return
+
         if not isinstance(message, dict) or not message.get("ok") or not isinstance(data, dict):
+            return
+
+        if what == "gen":
+            self.take_gen(data)
             return
 
         if what in ("pause", "step", "speed"):

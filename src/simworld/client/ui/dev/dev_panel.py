@@ -14,6 +14,11 @@ FONT_SIZE = 20
 PICKER_WIDTH = 230
 PICKER_ROWS = 12
 PICKER_ROW = 22
+GEN_ROW = 22
+GEN_GAP = 2
+GEN_BUTTON = 84
+GEN_BOTTOM = 40
+CHECK_SIZE = 14
 CLICK_MOVE = 6
 FILL = (20, 22, 28, 225)
 BORDER = (120, 130, 150)
@@ -104,6 +109,23 @@ class DevPanel:
         box = pygame.Rect(left - 4, top - 4, WIDTH + 8, y - top + 4 + (HEADING if hint else 0))
         return items, box, heading, (left, top)
 
+    def gen_layout(self):
+        _, main, _, (left, top) = self.layout()
+        area = self.area()
+        rows = self.state.gen_rows()
+        body = rows[1:]
+        step = GEN_ROW + GEN_GAP
+        room = max(3, (area.bottom - GEN_BOTTOM - top - TITLE - 8) // step - 1)
+        biggest = max(0, len(body) - room)
+        self.state.gen_scroll = max(0, min(biggest, self.state.gen_scroll))
+        shown = body[self.state.gen_scroll : self.state.gen_scroll + room]
+        x, y = main.right + 8, top
+        box = pygame.Rect(x - 4, y - 4, WIDTH + 8, TITLE + step * (1 + len(shown)) + 8)
+        seed_y = y + TITLE
+        button = pygame.Rect(x + WIDTH - GEN_BUTTON, seed_y, GEN_BUTTON, GEN_ROW) if rows[0][1] is not None else None
+        cells = [(key, kind, label, checked, pygame.Rect(x, seed_y + step * (index + 1), WIDTH, GEN_ROW)) for index, (kind, key, label, checked) in enumerate(shown)]
+        return box, (x, y, seed_y, rows[0][2]), button, cells, biggest
+
     def picker_layout(self, items):
         kind = self.state.picker
 
@@ -162,6 +184,7 @@ class DevPanel:
                 state.toggle()
                 self.down = None
                 self.swallow = False
+                self.ask_gen()
                 return True
 
             return event.key == pygame.K_ESCAPE and state.open and state.cancel()
@@ -184,12 +207,25 @@ class DevPanel:
 
         return False
 
+    def ask_gen(self):
+        request = self.state.gen_request()
+
+        if request is not None:
+            self.requests.append(request)
+
     def wheel(self, event):
         items, _, _, _ = self.layout()
         box, _ = self.picker_layout(items)
+        mouse = pygame.mouse.get_pos()
 
-        if box is None or not box.collidepoint(pygame.mouse.get_pos()):
-            return False
+        if box is None or not box.collidepoint(mouse):
+            gen_box, _, _, _, biggest = self.gen_layout()
+
+            if not gen_box.collidepoint(mouse):
+                return False
+
+            self.state.gen_scroll = max(0, min(biggest, self.state.gen_scroll - event.y))
+            return True
 
         biggest = max(0, len(self.state.options(self.state.picker)) - PICKER_ROWS)
         self.state.scroll = max(0, min(biggest, self.state.scroll - event.y))
@@ -204,6 +240,19 @@ class DevPanel:
             for name, rect in options:
                 if rect.collidepoint(event.pos):
                     self.apply(state.pick_option(name), now)
+
+            self.swallow = True
+            return True
+
+        gen_box, _, button, cells, _ = self.gen_layout()
+
+        if gen_box.collidepoint(event.pos):
+            if button is not None and button.collidepoint(event.pos):
+                self.apply(state.press("gen:seed", self.context()), now)
+
+            for key, kind, _, _, rect in cells:
+                if kind == "check" and rect.collidepoint(event.pos):
+                    self.apply(state.press(key, self.context()), now)
 
             self.swallow = True
             return True
@@ -274,8 +323,42 @@ class DevPanel:
         if hint:
             surface.blit(font.render(hint, True, MUTED), (origin[0], box.bottom - HEADING))
 
+        self.draw_gen(surface, font, mouse)
         self.draw_picker(surface, font, items, mouse)
         self.draw_selected(surface, font)
+
+    def draw_gen(self, surface, font, mouse):
+        box, (x, y, seed_y, seed_label), button, cells, biggest = self.gen_layout()
+        panel = pygame.Surface(box.size, pygame.SRCALPHA)
+        panel.fill(FILL)
+        surface.blit(panel, box.topleft)
+        pygame.draw.rect(surface, BORDER, box, 1)
+        surface.blit(font.render("GENERATION", True, RING), (x, y))
+        surface.blit(font.render(seed_label, True, TEXT), (x, seed_y + 4))
+
+        if button is not None:
+            pygame.draw.rect(surface, HOVER if button.collidepoint(mouse) else BUTTON, button, border_radius=4)
+            image = font.render("New seed", True, TEXT)
+            surface.blit(image, image.get_rect(center=button.center))
+
+        for key, kind, label, checked, rect in cells:
+            if kind == "heading":
+                surface.blit(font.render(label, True, MUTED), (rect.x, rect.y + 4))
+                continue
+
+            if rect.collidepoint(mouse):
+                pygame.draw.rect(surface, HOVER, rect, border_radius=3)
+
+            tick = pygame.Rect(rect.x + 4, rect.centery - CHECK_SIZE // 2, CHECK_SIZE, CHECK_SIZE)
+            pygame.draw.rect(surface, ACTIVE if checked else BUTTON, tick, border_radius=2)
+            pygame.draw.rect(surface, BORDER, tick, 1, border_radius=2)
+            previous = surface.get_clip()
+            surface.set_clip(rect)
+            surface.blit(font.render(label, True, TEXT), (tick.right + 8, rect.y + 4))
+            surface.set_clip(previous)
+
+        if biggest:
+            surface.blit(font.render(f"scroll {self.state.gen_scroll + 1}/{biggest + 1}", True, MUTED), (x + WIDTH - 70, y))
 
     def draw_picker(self, surface, font, items, mouse):
         box, options = self.picker_layout(items)

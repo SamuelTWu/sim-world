@@ -269,6 +269,7 @@ class Game:
                 self.running = self.renderer.handle_events()
                 if not self.running:
                     break
+                self.sync_console()
                 if self.renderer.restart_requested:
                     self.renderer.restart_requested = False
                     self.start_new_game()
@@ -301,7 +302,7 @@ class Game:
         enabled = self.mode == DEVELOPER and settings.get("mode") == "sandbox"
         self.renderer.set_dev_tools(enabled)
 
-        if enabled and self.catalog_seq is None:
+        if enabled and self.catalog_seq is None and self.client.state == READY:
             self.catalog_seq = self.client.dev("catalog")
 
             if self.catalog_seq is not None:
@@ -322,7 +323,8 @@ class Game:
     def dev_result(self, message):
         tag = self.sent.pop(message["seq"], None) or ""
 
-        if tag == "catalog" and message["ok"]:
+        if tag in ("catalog", "dev:catalog") and message["ok"] and isinstance(message.get("data"), dict):
             self.renderer.set_dev_catalog(message.get("data"))
-        else:
+
+        if tag != "catalog" or not message["ok"]:
             self.renderer.dev_result(tag[4:] if tag.startswith("dev:") else None, message)

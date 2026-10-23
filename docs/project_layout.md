@@ -259,3 +259,7 @@ The README and the phase checklists use the original names. Translate with:
 | `game/command/visibility.py` | `sim/visibility.py` |
 | `tech/*` | `content/tech/` |
 | planned `rendering/*`, `entity/projectiles.py`, `entity/structure*.py`, `world/collision.py`, `world/flowfield.py` | `client/render/*`, `sim/combat/projectiles.py`, `sim/structures/`, `sim/navigation/collision.py`, `sim/navigation/flowfield.py` |
+
+
+Known bugs:
+painting tiles in dev places tiles but render doesnt change

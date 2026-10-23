@@ -1,6 +1,6 @@
 from collections import namedtuple
 
-from ....shared.dev_commands import DEV_COMMANDS, DevSyntaxError, names, parse
+from ....shared.dev_commands import DEV_COMMANDS, GEN_ACTIONS, DevSyntaxError, names, parse
 
 MAX_HISTORY = 50
 MAX_LOG = 100
@@ -23,6 +23,9 @@ def clean_names(values):
 def sources(kind, catalog):
     if kind == "command":
         return names()
+
+    if kind == "gen":
+        return list(GEN_ACTIONS)
 
     if not isinstance(catalog, dict):
         return []

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 from ..shared.dev_commands import DEV_COMMANDS, STEP_MAX, DevSyntaxError, help_lines, names, usage, validate
 from ..sim.dev.catalog import catalog_names
-from ..sim.dev.tools import DevError, catalog_text, delete_pixel, inspect_pixel, paint_tile, spawn_thing, wake_pixel
+from ..sim.dev.tools import DevError, catalog_text, delete_pixel, gen_listing, inspect_pixel, paint_tile, set_seed, set_switch, spawn_thing, wake_pixel
 from .dev_time import clear_credit
 
 DEV_HANDLERS = {}
@@ -180,3 +180,20 @@ def dev_tile(server, client, args):
 def dev_catalog(server, client, args):
     found = catalog_names()
     return DevResult(True, catalog_text(found), found)
+
+
+@dev_command("gen")
+def dev_gen(server, client, args):
+    action = args["action"]
+
+    try:
+        if action == "list":
+            found = gen_listing(server.sim)
+        elif action == "seed":
+            found = set_seed(server.sim, args["value"])
+        else:
+            found = set_switch(server.sim, action, args["name"], args["value"] == "on")
+    except DevError as problem:
+        return DevResult(False, str(problem))
+
+    return DevResult(True, found.text, found.data)

@@ -38,6 +38,7 @@ from .replication.interest import MAX_VIEW_TILES, SpatialGrid, clean_view, visib
 from .replication.transientsync import transient_events_for
 from .dev_commands import run_dev
 from .dev_time import init_time, ticks_to_run
+from ..sim.dev.tools import section_points
 
 READY_MARKER = "[server] ready"
 DEFAULT_HOST = "127.0.0.1"
@@ -251,6 +252,9 @@ class Server:
 
             if entity is not None and entity.alive:
                 points.append((entity.position.x, entity.position.y))
+
+        if getattr(self.sim, "sandbox", False) is True:
+            points.extend(section_points(TILE_UNITS))
 
         wanted = wanted_chunks(points, TILE_UNITS, world.width, world.height)
 

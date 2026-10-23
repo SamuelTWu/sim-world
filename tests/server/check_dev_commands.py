@@ -8,7 +8,7 @@ from src.simworld.server.dev_time import init_time
 from src.simworld.shared import dev_commands as table
 
 failures = []
-NEEDS_REAL_WORLD = {"spawn", "delete", "wake", "inspect", "tile"}
+NEEDS_REAL_WORLD = {"spawn", "delete", "wake", "inspect", "tile", "gen"}
 CONTEXT = {"selected": 3, "cursor": (4.0, 5.0)}
 SAMPLE_ARGS = {name: table.parse(command.example, CONTEXT)[1] for name, command in table.DEV_COMMANDS.items()}
 

@@ -7,12 +7,13 @@ from .world import World
 from .maps.map_types import MapManager
 from .features.feature_manager import FeatureManager
 from .tile_types import TILE_TYPES
-from .maps.mapModifiers import MODIFIERS, resolve_modifiers, apply_post_modifiers
+from .maps.map_modifiers import MODIFIERS, resolve_modifiers, apply_post_modifiers
 from .sandbox import generate_sandbox
 from dataclasses import dataclass, field, replace
 from .sandbox import REGION_SIZE, generate_sandbox
 
 MODES = ("normal", "sandbox")
+NEUTRAL_MAP_VALUE = 0.5
 
 
 def check_mode(mode):
@@ -47,7 +48,7 @@ class GenerationContext:
 
 
 class WorldGenerator:
-    def __init__(self, settings: GenerationSettings | None = None):
+    def __init__(self, settings: GenerationSettings | None = None, disabled_maps=(), disabled_features=()):
         self.settings = settings or GenerationSettings()
         seed = self.settings.seed
         self.random = random.Random(None if seed is None else f"world:{seed}")
@@ -57,8 +58,10 @@ class WorldGenerator:
 
         self.modifiers = self._default_modifiers()
 
+        self.disabled_maps = {str(name).lower() for name in disabled_maps}
         self.maps = MapManager()
         self.features = FeatureManager()
+        self.features.disabled = set(disabled_features)
 
     def generate(self) -> World:
         check_mode(self.settings.mode)
@@ -98,6 +101,13 @@ class WorldGenerator:
         return world
 
     def generate_map(self, map_object):
+        if map_object.name.lower() in self.disabled_maps:
+            for y in range(map_object.height):
+                for x in range(map_object.width):
+                    map_object.set(x, y, NEUTRAL_MAP_VALUE)
+
+            return
+
         start = time.perf_counter()  # determinism: ok
 
         self.modifiers = resolve_modifiers(map_object, self.settings.tag_modifiers)
@@ -136,3 +146,8 @@ class WorldGenerator:
             repeaty=100000,
             base=self.settings.seed or 0,
         )
+
+
+def generate_section(settings, gen):
+    section = WorldGenerator(replace(settings, mode="normal", width=REGION_SIZE, height=REGION_SIZE, seed=gen["seed"], debug=False), gen["disabled_maps"], gen["disabled_features"])
+    return section.generate()

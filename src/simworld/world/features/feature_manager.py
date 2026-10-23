@@ -24,6 +24,7 @@ def find_feature_modules(package) -> list[str]:
 class FeatureManager:
     def __init__(self, selection_strategy=None):
         self.features = {}
+        self.disabled = set()
         self.selection_strategy = selection_strategy or BlendedSelection()
         self._load_features()
 
@@ -55,7 +56,7 @@ class FeatureManager:
     def generate_all(self, context):
         world = context.world
         debug = context.settings.debug
-        features = list(self.features.values())
+        features = [feature for feature in self.features.values() if feature.name not in self.disabled]
         world.feature_grid = [[None] * world.width for _ in range(world.height)]
 
         for feature in features:

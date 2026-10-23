@@ -6,6 +6,10 @@ NAME_PATTERN = re.compile(r"[A-Za-z0-9_.-]{1,64}(?::[A-Za-z0-9_.-]{1,64})?")
 MAX_TILE = 1_000_000
 MAX_ID = 1_000_000_000
 STEP_MAX = 100
+MAX_SEED = 2**32 - 1
+GEN_FORMS = {"list": (), "feature": ("name", "value"), "map": ("name", "value"), "seed": ("value",)}
+GEN_ACTIONS = tuple(GEN_FORMS)
+GEN_SWITCH = ("on", "off")
 SPEEDS = (0.25, 1.0, 4.0)
 MAX_SHOWN = 32
 POINT_KEYS = ("x", "y")
@@ -50,6 +54,7 @@ DEV_COMMANDS = {
     "inspect": Command("show everything about an entity (the selected one if no id is given)", (ID,), "/inspect 3"),
     "tile": Command("paint a tile (at the mouse if no point is given)", (Arg("name", "name", complete="tile"), AT), "/tile stone 4 4"),
     "catalog": Command("list the blueprints and tiles", (), "/catalog"),
+    "gen": Command("list or change what the generated section is made of (only that section is regenerated)", (Arg("action", "name", choices=GEN_ACTIONS, complete="gen"), Arg("name", "name", optional=True), Arg("value", "name", optional=True)), "/gen feature arctic off"),
     "help": Command("list the commands, or show one", (Arg("command", "name", optional=True, complete="command"),), "/help spawn"),
 }
 
@@ -66,7 +71,13 @@ def keys_of(arg):
     return POINT_KEYS if arg.kind == "point" else (arg.name,)
 
 
+USAGE = {"gen": "/gen list | feature <name> on|off | map <name> on|off | seed <n>"}
+
+
 def usage(what):
+    if what in USAGE:
+        return USAGE[what]
+
     parts = []
 
     for arg in DEV_COMMANDS[what].args:
@@ -122,6 +133,51 @@ def check_value(label, arg, value):
     return value
 
 
+def validate_gen(args):
+    for key in args:
+        if not isinstance(key, str) or key not in ("action", "name", "value"):
+            raise DevSyntaxError(f"unexpected argument {str(key)[:MAX_SHOWN]!r}")
+
+    if "action" not in args:
+        raise DevSyntaxError("missing argument 'action'")
+
+    action = args["action"]
+
+    if not isinstance(action, str) or action not in GEN_FORMS:
+        raise DevSyntaxError(f"'action' must be one of {', '.join(GEN_ACTIONS)}")
+
+    needs = GEN_FORMS[action]
+    clean = {"action": action}
+
+    for key in ("name", "value"):
+        if key in needs and key not in args:
+            raise DevSyntaxError(f"missing argument '{key}'")
+
+        if key not in needs and key in args:
+            raise DevSyntaxError(f"unexpected argument '{key}' for {action}")
+
+    if "name" in needs:
+        clean["name"] = check_value("name", Arg("name", "name"), args["name"])
+
+    if action == "seed":
+        value = args["value"]
+
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise DevSyntaxError("'value' must be a whole number")
+
+        if not 0 <= value <= MAX_SEED:
+            raise DevSyntaxError(f"'value' must be from 0 to {MAX_SEED}")
+
+        clean["value"] = value
+    elif "value" in needs:
+        if args["value"] not in GEN_SWITCH or not isinstance(args["value"], str):
+            raise DevSyntaxError("'value' must be on or off")
+
+        clean["value"] = args["value"]
+
+    return clean
+
+
 def validate(what, args):
     command = DEV_COMMANDS.get(what) if isinstance(what, str) else None
 
@@ -130,6 +186,9 @@ def validate(what, args):
 
     if not isinstance(args, dict):
         raise DevSyntaxError("args must be a map")
+
+    if what == "gen":
+        return validate_gen(args)
 
     allowed = {key for arg in command.args for key in keys_of(arg)}
 
@@ -198,6 +257,32 @@ def cursor_point(context):
         raise DevSyntaxError(NEEDS_CURSOR) from None
 
 
+def parse_gen(words):
+    if not words:
+        raise DevSyntaxError(f"missing <action>, usage: {usage('gen')}")
+
+    action = words[0].lower()
+
+    if action not in GEN_FORMS:
+        raise DevSyntaxError(f"unknown action '{words[0][:MAX_SHOWN]}', usage: {usage('gen')}")
+
+    needs, rest = GEN_FORMS[action], words[1:]
+
+    if len(rest) < len(needs):
+        missing = needs[len(rest)]
+        raise DevSyntaxError(f"missing <{'n' if action == 'seed' else 'on|off' if missing == 'value' else missing}>, usage: {usage('gen')}")
+
+    if len(rest) > len(needs):
+        raise DevSyntaxError(f"too many arguments, usage: {usage('gen')}")
+
+    args = {"action": action}
+
+    for key, word in zip(needs, rest):
+        args[key] = parse_int(word) if action == "seed" else word.lower() if key == "value" else word
+
+    return args
+
+
 def parse(text, context=None):
     if not isinstance(text, str):
         raise DevSyntaxError("type a command, or /help")
@@ -217,6 +302,10 @@ def parse(text, context=None):
         raise DevSyntaxError(f"unknown command '{what[:MAX_SHOWN]}': type /help for the list")
 
     words = words[1:]
+
+    if what == "gen":
+        return what, validate(what, parse_gen(words))
+
     command = DEV_COMMANDS[what]
     args = {}
     index = 0

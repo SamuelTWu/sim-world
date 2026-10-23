@@ -30,7 +30,7 @@ def plain(args):
     return isinstance(args, dict) and all(isinstance(key, str) and type(value) in (int, float, str) for key, value in args.items())
 
 
-expected = ["catalog", "delete", "help", "inspect", "pause", "spawn", "speed", "step", "tile", "wake"]
+expected = ["catalog", "delete", "gen", "help", "inspect", "pause", "spawn", "speed", "step", "tile", "wake"]
 check("the table has exactly the planned commands", d.names() == expected, str(d.names()))
 
 for what, command in d.DEV_COMMANDS.items():

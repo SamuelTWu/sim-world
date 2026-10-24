@@ -283,8 +283,7 @@ class ApplyStatus(Effect):
         targets = [entity] if args["radius"] <= 0 else nearby(runner, entity, args["radius"])
 
         for target in targets:
-            target.statuses = [status for status in target.statuses if status.name != args["name"]]
-            target.statuses.append(StatusEffect(args["name"], args["duration"], args["strength"], source=entity.id))
+            runner.entity_manager.add_status(target, StatusEffect(args["name"], args["duration"], args["strength"], source=entity.id))
 
 
 @effect

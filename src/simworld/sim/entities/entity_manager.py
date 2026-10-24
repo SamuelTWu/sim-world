@@ -1,5 +1,6 @@
 from .entity import Entity
 from .entity_factory import EntityFactory
+from ..core.roster import Roster
 
 
 class EntityManager:
@@ -8,6 +9,7 @@ class EntityManager:
         self.entity_factory = EntityFactory()
         self.next_id = 1
         self.pending_removal: set[int] = set()
+        self.roster = Roster()
 
     def allocate_id(self) -> int:
         entity_id = self.next_id
@@ -29,11 +31,37 @@ class EntityManager:
 
         self.entities[entity.id] = entity
         self.next_id = max(self.next_id, entity.id + 1)
+        self.roster.sync(entity)
         return entity
 
     def restore(self, data: dict) -> Entity:
         entity = Entity.from_dict(data)
         return self.register(entity)
+
+    def touch(self, entity: Entity):
+        self.roster.sync(entity)
+
+    def add_status(self, entity: Entity, status):
+        entity.statuses = [other for other in entity.statuses if other.name != status.name]
+        entity.statuses.append(status)
+        self.roster.sync(entity)
+
+    def set_statuses(self, entity: Entity, statuses: list):
+        entity.statuses = statuses
+        self.roster.sync(entity)
+
+    def set_trait(self, entity: Entity, name: str, values: dict):
+        entity.traits[name] = values
+        self.roster.sync(entity)
+
+    def drop_trait(self, entity: Entity, name: str):
+        entity.traits.pop(name, None)
+        self.roster.sync(entity)
+
+    def set_task(self, entity: Entity, task, score: float = 0.0):
+        entity.task = task
+        entity.task_score = score
+        self.roster.sync(entity)
 
     def kill(self, entity_id: int):
         entity = self.entities.get(entity_id)
@@ -41,16 +69,22 @@ class EntityManager:
         if entity is not None and entity.alive:
             entity.alive = False
             self.pending_removal.add(entity_id)
+            self.roster.drop(entity)
 
     def destroy(self, entity_id: int):
-        self.entities.pop(entity_id, None)
+        entity = self.entities.pop(entity_id, None)
+
+        if entity is not None:
+            self.roster.drop(entity)
+
         self.pending_removal.discard(entity_id)
 
     def flush(self) -> list[Entity]:
         removed = [self.entities[i] for i in self.pending_removal if i in self.entities]
 
-        for entity_id in list(self.pending_removal):
-            self.entities.pop(entity_id, None)
+        for entity in removed:
+            self.roster.drop(entity)
+            self.entities.pop(entity.id, None)
 
         self.pending_removal.clear()
         return removed

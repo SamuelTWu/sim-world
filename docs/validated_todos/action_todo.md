@@ -4,7 +4,7 @@ Build order: **1. Actions (this file)**, then 2. Items (`2_items_todo.md`), then
 
 This file builds the engine: five primitive **ops**, actions written as JSON, **reactions**, and commands as a queue. It needs no items and no structures. Items and structures plug into it afterwards.
 
-Out of scope for all three files: movement, exploring, wandering, ranking actions by need. Travel is one stub function that flow fields replace later.
+Out of scope for all three files: movement, exploring, wandering, ranking actions by need. Travel is one stub function that flow fields replace later. Also out of scope for now: autocrafters choosing their own recipe, taking inputs from nearby containers, and the "pick the best pixel" assignment for the recipe book (a layer on top of `do`).
 
 Conventions: relative imports only, no comments or docstrings, longer lines over more lines, snake_case files, an `__init__.py` in every folder, pygame only in `client/`. Dependency direction `shared < world < content < sim < server`: JSON lives in `content/`, the code that runs it in `sim/`.
 
@@ -40,18 +40,20 @@ There is no `destroy` and no `move`. A pixel that must go away is removed by a *
 |---|---|
 | `id` | the name = the file name. A pixel can do an action when it has a trait with that name. |
 | `label`, `description`, `tier`, `cost_points` | for the editor and tech tree |
-| `params` | numbers a player may edit: `{"default", "minimum", "maximum", "weight"}`. Any other field may say `"$name"`. |
+| `params` | values a player may edit: a number `{"default", "minimum", "maximum", "weight"}`, or a **row** `{"type": "row", "table": "recipes"}` that picks one row of a data table (see "Tables and rows" below). Any other field may say `"$name"` or `"$name.field"`. |
 | `target` | `{"type": "pixel" \| "self" \| "point", "filter": [conditions], "range": 1, "pick": "nearest" \| "random"}`. `range` 0 = on top of it, 1 = adjacent, larger = world units. |
-| `requires` | conditions on the actor: `[{"stat", "op", "value"}]`, operators `< > <= >= == !=` |
-| `cost` | stats paid at the start of each cycle, e.g. `{"energy": 0.02}` |
-| `time` | seconds per cycle, rounded up to ticks (0.2 s = 4 ticks at 20 Hz) |
+| `requires` | conditions on the actor: `[{"stat", "op", "value"}]`, operators `< > <= >= == !=`. An element may be a `$ref` that resolves to a list; it is spliced in (this is how a table row adds its own requirements). |
+| `cost` | a map of stat to amount, for example `{"energy": 0.02}` or `{"inventory:clay": 2, "inventory:wood": 1}`; may be a `$ref` to a map. Paid at the start of each cycle, or all at once with the effects at the end of it when `cost_at` is `"end"` (default `"start"`). |
+| `time` | seconds per cycle, rounded up to ticks (0.2 s = 4 ticks at 20 Hz); may be a `$ref` |
 | `chance` | 0..1 per cycle |
-| `effects` | list of `{"op", ...}`, each may have `"chance"` and `"if"` |
-| `repeat` | `false`, a number of cycles, or `"target"` (until the target is gone) |
+| `effects` | list of `{"op", ...}`, each may have `"chance"` and `"if"`; `modify` accepts a map of stat to amount (also as a `$ref`) |
+| `repeat` | `false`, a number (or `"$count"`) of cycles, or `"target"` (until the target is gone) |
 | `variants` | overrides tried in order; the first whose `requires` pass is used |
 | `click` | how a player's click can mean this action (step 6.3) |
 
 An effect says who it applies to with `on`: `self`, `target`, or `area` (everything within `radius` of the target, optional `tag`).
+
+**Tables and rows.** A table is a folder of JSON files in `content/` (for now only `content/recipes/`), one row per file, each with an `id`. An action with a `row` param does not know what the table is for: the command sends the row's id (`{"recipe": "brick"}`), and `$recipe.inputs` resolves to that row's `inputs` field. A `$ref` may stand for a whole map or list, not only a number. This is how one `craft` action covers every recipe, and how later actions (build from a table of blueprints, plant from a table of seeds) work with no new engine code. Rows are validated at load time against the action that uses them (unknown stat, resource or op is refused with the file name). The tech tree unlocks rows (a row's `tier`), not actions.
 
 **Reactions are only for an object's own consequences** (a tree drops wood when hit, a pixel is removed at 0 health, a block breaks). They are data on the blueprint, there is exactly one trigger, and most of them come from defaults or a shorthand, so you never write a rule per event:
 
@@ -80,13 +82,13 @@ An effect says who it applies to with `on`: `self`, `target`, or `area` (everyth
 ## Part 2: Writing stats, `modify`, `emit`
 
 - [ ] **2.1 The stat writer**
-  **Do:** in `sim/ai/stats.py` add `modify(entity, name, add=None, set=None) -> (old, new)`, using the same address space as `read` and the same name validator. Clamp to the stat's own range (health 0..max, need min..max, inventory >= 0). `alive` only accepts `set 0` (call `entity_manager.kill`; removal still happens at the end of the tick). After a change, emit `stat_changed(entity, stat, old, new)` on the event bus.
+  **Do:** in `sim/ai/stats.py` add `modify(entity, name, add=None, set=None) -> (old, new)`, using the same address space as `read` and the same name validator. Clamp to the stat's own range (health 0..max, need min..max, inventory >= 0). An add to `inventory:<resource>` that does not fit is refused with the reason `no_room`, using the inventory API's own capacity check (confirm its name), never clamped silently. `alive` only accepts `set 0` (call `entity_manager.kill`; removal still happens at the end of the tick). After a change, emit `stat_changed(entity, stat, old, new)` on the event bus.
   **Done when:** `tests/sim/actions/check_modify.py` passes: every stat family, clamping, `alive`, and the event fires with old and new.
 - [ ] **2.2 Conditions**
   **Do:** `sim/actions/conditions.py` with `check(actor, target, conditions) -> reason | None`, built on `stats.read`. Operators `< > <= >= == !=` (extend the table in `rules.py`; it is the same table). A condition can name `self` or `target` (default: self for `requires`, target for `filter`).
   **Done when:** `check_conditions.py` passes.
 - [ ] **2.3 The `modify` op**
-  **Do:** `sim/ops/modify.py`: `{"on", "stat", "add" | "set"}`. `on: area` finds neighbors through `context.proximity` (never scan every pixel). Returns `True`, or a reason.
+  **Do:** `sim/ops/modify.py`: `{"on", "stat", "add" | "set"}`, or `{"on", "add": {stat: amount, ...}}` (one map, applied all-or-nothing: if one stat is refused, for example `no_room`, none change). `on: area` finds neighbors through `context.proximity` (never scan every pixel). Returns `True`, or a reason.
   **Done when:** `check_ops.py` shows modify on self, target and area.
 - [ ] **2.4 The `emit` op**
   **Do:** `sim/ops/emit.py`: `{"event", "data", "visible"}`. It emits on the event bus; with `visible: true` it also writes a transient event (the existing capped log, 256 per tick, for clients).
@@ -122,8 +124,11 @@ An effect says who it applies to with `on`: `self`, `target`, or `area` (everyth
 ## Part 4: The action engine
 
 - [ ] **4.1 `ActionDef` and the loader**
-  **Do:** `sim/actions/action_def.py`: one action from JSON, with `validate(values)`, `cost(values)` (copy these from the old `Behavior`), `$param` substitution, and `variants`. `sim/actions/loader.py` reads every `content/actions/*.json` in name order and refuses bad files at load time (unknown op, unknown stat, bad `on`, unknown field) with the file name in the message.
+  **Do:** `sim/actions/action_def.py`: one action from JSON, with `validate(values)`, `cost(values)` (copy these from the old `Behavior`), `$param` and `$name.field` substitution (4.1b), `cost_at`, and `variants`. `sim/actions/loader.py` reads every `content/actions/*.json` in name order and refuses bad files at load time (unknown op, unknown stat, bad `on`, unknown field) with the file name in the message.
   **Done when:** `check_loader.py` loads a good file and refuses five kinds of bad file.
+- [ ] **4.1b Tables, rows and `$ref`**
+  **Do:** `sim/actions/tables.py`: `load_tables()` reads every row file of each table folder (for now `content/recipes/*.json`, one row per file, `id` required, file name = id) and refuses bad rows with the file name. In `ActionDef`: a param of type `row` accepts only an id that exists in its table; `resolve(values)` replaces `$name`, `$name.field` and `$name.field.sub` anywhere in the action (strings, maps, lists); a `$ref` that is an element of a list and resolves to a list is spliced in. A missing row or field is a load-time error when the value is a literal and a task failure `bad_row` when it came from a command. Rows are validated against the action that uses them at load (stats, resources and ops must exist). Keep the substitution table-agnostic (it must not mention recipes); only `recipes` exists as a table for now.
+  **Done when:** `check_tables.py`: a row param accepts a good id and refuses an unknown one; `$recipe.inputs` resolves to a map, `$recipe.time` to a number, and a list `$ref` is spliced; a bad row file is refused with its name; a made-up second table works with no engine change.
 - [ ] **4.2 `ActionManager`**
   **Do:** `sim/actions/action_manager.py` with the same methods the tech tree and editor use on `BehaviorManager` today (`get`, `all`, `names`, `by_tier`, `ordered`, `cost`, `breakdown`). Run it beside the old manager (do not delete the old one yet); a pixel's traits are looked up in both.
   **Done when:** the editor lists a new JSON action with no code edit.
@@ -134,7 +139,7 @@ An effect says who it applies to with `on`: `self`, `target`, or `area` (everyth
   **Do:** one function `travel(entity, goal, context, delta_time) -> "arrived" | "moving" | "blocked"`, wrapping `step_toward` in `sim/navigation/movement.py` (keep that file).
   **Done when:** it is the only place the pipeline moves a pixel. The flow field will replace this function and nothing else.
 - [ ] **4.5 The pipeline task**
-  **Do:** `sim/actions/pipeline.py`: one `ActionTask(Task)` with phases `target -> travel -> check -> pay -> wait -> roll -> effects -> repeat`. All its progress lives in `task.state` (phase, target id, progress, cycles done), so it saves. Failures use `task.fail(code)`: `no_target`, `blocked`, `requirements`, `cannot_afford`, `target_gone`, `timeout`, or an op's reason. `finish()` releases anything claimed. One global patience limit for travel and blocked time.
+  **Do:** `sim/actions/pipeline.py`: one `ActionTask(Task)` with phases `target -> travel -> check -> pay -> wait -> roll -> effects -> repeat`. With `cost_at: "end"` the `pay` step moves to after `roll` and is done together with `effects` as one all-or-nothing step (re-check the cost, pay, apply; if anything fails nothing changes and the inputs stay with the pixel). All its progress lives in `task.state` (phase, target id, progress, cycles done), so it saves. Failures use `task.fail(code)`: `no_target`, `blocked`, `requirements`, `cannot_afford`, `target_gone`, `timeout`, or an op's reason. `finish()` releases anything claimed. One global patience limit for travel and blocked time.
   **Done when:** `check_pipeline.py` runs a made-up action (`poke`: modify a prop on a nearby pixel) through every phase and every failure code.
 
 ## Part 5: Port the first actions (they need only `modify` and `emit`)
@@ -150,6 +155,15 @@ For each: write the JSON, write `tests/sim/actions/check_<name>.py` (target foun
   **Do:** `spread.json`: effect `modify status:poison add $strength` with `on: area` and `radius: $radius`.
   **Done when:** its check passes; everyone within the radius is affected, nobody outside.
 
+- [ ] **5.3 `craft`**
+  **Do:** `content/recipes/brick.json` (and two more rows as test data) and `content/actions/craft.json`, sketch:
+  ```json
+  {"id": "craft", "label": "Craft", "params": {"recipe": {"type": "row", "table": "recipes"}, "count": {"default": 1, "minimum": 1, "maximum": 99}},
+   "target": {"type": "self"}, "requires": ["$recipe.requires"], "cost": "$recipe.inputs", "cost_at": "end",
+   "time": "$recipe.time", "repeat": "$count", "effects": [{"op": "modify", "on": "self", "add": "$recipe.outputs"}]}
+  ```
+  A recipe row: `{"id": "brick", "label": "Brick", "category": "building", "tier": 1, "inputs": {"inventory:clay": 2}, "outputs": {"inventory:brick": 2}, "time": 4, "requires": [{"stat": "tag:furnace", "op": "==", "value": 1}]}`. A row with no station requirement is a hand recipe. A station is an ordinary blueprint with an inventory, the `craft` trait and a tag, and it crafts the same way (`target: self`); pixels feed it and collect from it with `drop` and `pickup` (items file). The crafted output goes into the actor's inventory through `modify`, so a full inventory fails the cycle with `no_room`, and the inputs stay with the pixel.
+  **Done when:** `check_craft.py`: a hand recipe turns its inputs into its outputs after `time`; `count` 3 runs three cycles and stops early with `cannot_afford` when inputs run out; a full inventory fails with `no_room` and loses nothing; cancelling mid-cycle keeps the inputs; a station recipe is refused on a pixel without the tag and works on a station pixel; a new recipe file works with no code edit; two seeded runs identical.
 ## Part 6: Commands become "do this action now"
 
 - [ ] **6.1 The queue**
@@ -162,7 +176,7 @@ For each: write the JSON, write `tests/sim/actions/check_<name>.py` (target foun
   **Do:** an action may declare `"click": {"on": "pixel", "priority": 10, "if": [...]}`. `act` collects the actions the selected pixels have, asks each for a match at the point, takes the highest `priority`, and calls `do`.
   **Done when:** a click on a hostile pixel means `attack` and a click on empty ground does nothing, with no code edit to `act` for a new action.
 - [ ] **6.4 Abilities for the client**
-  **Do:** `inspect` returns the actions a pixel can do (id, label, params, what target it needs). The client builds its menu from that. Bump the protocol version once for `do`, `abilities` and `action_failed`.
+  **Do:** `inspect` returns the actions a pixel can do (id, label, params, what target it needs). For a `row` param it also returns the rows the pixel can do right now and, for the rest, the first reason they cannot (`requires`, `cannot_afford`, `no_room`), so the client can build a recipe book from one action. The client builds its menu from that. Bump the protocol version once for `do`, `abilities` and `action_failed`.
   **Done when:** the client menu lists actions that are only in JSON.
 - [ ] **6.5 Remove the old command system**
   **Do:** delete the per-pixel command files (`move`, `attack`, `drop`, `pickup`, `spawn` commands), the old `act` resolvers, the `command` trait with `gate_trait` and `gate_behavior`, `orders.py` with `components["order"]`, `FAILURE_REASONS` and `task_score == inf`. `order_failed` becomes `action_failed` carrying the task's reason. Fix `gui/blueprints.py` (it special-cases the `command` trait).
@@ -221,7 +235,7 @@ This part makes events feed the decision loop. It builds the mechanism only: how
 - [ ] **8.4 Sleep.** A pixel with nothing to do and an empty queue sleeps; a command wakes it.
 - [ ] **8.5 Needs hook.** Add a `satisfies` field to the action JSON and apply it with `NeedSystem.completed` when a task ends DONE (the runner edit from the 13.3 patch). That replaces the `SATISFIES` table; ranking by need is the next project.
 - [ ] **8.6 Load test.** A scenario in `tools/loadtest.py` with a population commanded to `attack`; record the result in `LOADTEST_RESULTS.md`.
-- [ ] **8.7 Docs.** Put the five ops, the field list and the stat names in the project layout doc. Adding an action is "write a JSON file and add the trait to a blueprint".
+- [ ] **8.7 Docs.** Put the five ops, the field list and the stat names in the project layout doc. Adding an action is "write a JSON file and add the trait to a blueprint"; adding a recipe is "write a JSON file in `content/recipes/`".
 
 ---
 
@@ -232,7 +246,7 @@ This part makes events feed the decision loop. It builds the mechanism only: how
 - Should anything override a command (a panic when health is very low), or are commands always obeyed? (Part 6b protects commands; a panic rule can be added later.)
 - `MIN_COMMIT` and `SWITCH_MARGIN`: keep the current 1.3 margin, and what minimum commit time?
 - A command interrupts a pixel's own action: dropped (this plan) or pushed down the queue?
-- `cost` is paid at the start of each cycle, so a failed cast loses its bait. Right default?
+- `cost` is paid at the start of each cycle by default (a failed cast loses its bait) and at the end with `cost_at: "end"` (crafting: an interrupted craft keeps its inputs). Right defaults?
 - The shortest action is 4 ticks (200 ms at 20 Hz). Fine?
 - Do you want a one-time script to migrate blueprint traits named after the old behaviors (`roam`, `move`, `command`, `react`), or edit by hand?
 - What did `adapt.py` and `build.py` do?

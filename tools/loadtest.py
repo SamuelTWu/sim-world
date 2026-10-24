@@ -44,6 +44,8 @@ from dataclasses import asdict, dataclass, field
 
 from src.simworld.shared import protocol as proto
 
+from .statics import spawn_statics
+
 TICK_RATE = 20
 BUDGET_MS = 1000.0 / TICK_RATE
 MAX_P95_FRACTION = 0.8
@@ -62,6 +64,8 @@ class Config:
     crowd_tiles: int = 12  # the cluster is a square this many tiles wide
     together: bool = False  # bots stand at the cluster instead of spread over the map
     burst: int = 0  # shots added per tick (transient events)
+    statics: int = 0  # inert entities (no traits, no needs) spread over the whole world
+    statics_view: int = 0  # inert entities placed inside each bot's view, so they are replicated to it
     size: int = 160  # world width and height in tiles
     seed: int = 5
     warmup: float = 3.0  # seconds, after every bot has joined
@@ -145,6 +149,10 @@ def summarize(config, snapshots, bots):
         "bot_events": sum(b.get("events", 0) for b in bots),
         "bot_bytes": sum(b.get("bytes", 0) for b in bots),
     })
+    measured_updates = sum(b.get("updates_measured", 0) for b in bots)
+    result["bytes_per_update"] = (sum(b.get("bytes_measured", 0) for b in bots) / measured_updates) if measured_updates else 0.0
+    result["bytes_update_max"] = max((b.get("update_max", 0) for b in bots), default=0)
+    result["bytes_update_p95"] = percentile([size for b in bots for size in b.get("update_sizes", ())], 0.95)
     result["verdict"], result["reasons"] = judge(config, result)
     return result
 
@@ -224,6 +232,12 @@ def describe(config):
     if config.burst:
         parts.append(f"{config.burst} shots per tick")
 
+    if config.statics:
+        parts.append(f"{config.statics} inert entities over the world")
+
+    if config.statics_view:
+        parts.append(f"{config.statics_view} inert entities in each bot's view")
+
     return ", ".join(parts) or "empty world"
 
 
@@ -232,6 +246,7 @@ def report_lines(config, result):
         f"  {result['verdict']}: {describe(config)} ({config.size}x{config.size} tiles)",
         f"    tick ms: avg {result['tick_avg_ms']:.1f}, typical p95 {result['tick_p95_ms']:.1f}, worst-window p95 {result['tick_p95_worst_ms']:.1f}, max {result['tick_max_ms']:.1f} (budget {BUDGET_MS:.0f}) | overruns {result['overruns']}/{result['ticks']} | behind resets {result['behind_resets']} | {result['tick_rate']:.1f} ticks/s",
         "    phases ms/tick: " + " ".join(f"{name} {value:.2f}" for name, value in result["phase_ms"].items()),
+        f"    per client: {result['bytes_per_update']:.0f} bytes per tick update on average, p95 {result['bytes_update_p95']:.0f}, largest {result['bytes_update_max']} (measured after the warm-up)",
         f"    world: {result['players']} players, {result['pixels_total']} pixels ({result['pixels_active']} active, {result['pixels_asleep']} asleep) | out {result['bytes_per_s'] / 1024:.0f} KB/s | outbox backlog max {result['backlog_max']}",
     ]
 
@@ -340,6 +355,13 @@ def populate(sim, config):
 
         homes.append((spot[0] * TILE_UNITS + 16, spot[1] * TILE_UNITS + 16))
 
+    if config.statics:
+        spawn_statics(sim, config.statics, config.seed, size)
+
+    if config.statics_view:
+        for home in homes:
+            spawn_statics(sim, config.statics_view, config.seed + len(homes), size, around=home, spread=VIEW_TILES)
+
     name = next(name for name in ("runner", "commander", "swimmer", "pixel_runner") if sim.systems.context.load_blueprint(name) is not None)
     return {"homes": homes, "center": (middle[0] * TILE_UNITS + 16, middle[1] * TILE_UNITS + 16), "crowd": placed, "blueprint": name}
 
@@ -430,9 +452,10 @@ async def bot(index, url, home, config, end_at, out, blueprint_id):
     from websockets.exceptions import ConnectionClosed
 
     stats = out
-    stats.update({"name": f"bot{index}", "joined": False, "join_ms": 0.0, "command_ms": [], "bytes": 0, "messages": 0, "events": 0, "tick_updates": 0, "dropped": None, "error": None})
+    stats.update({"name": f"bot{index}", "joined": False, "join_ms": 0.0, "command_ms": [], "bytes": 0, "messages": 0, "events": 0, "tick_updates": 0, "dropped": None, "error": None, "bytes_measured": 0, "updates_measured": 0, "update_max": 0, "update_sizes": []})
     rng = random.Random(config.seed + 1000 + index)
     finishing = False
+    measure_from = end_at - config.measure
 
     try:
         async with connect(url, max_size=proto.MAX_MESSAGE_BYTES, compression=None, open_timeout=30) as ws:
@@ -465,6 +488,12 @@ async def bot(index, url, home, config, end_at, out, blueprint_id):
                     if message["type"] == proto.TICK_UPDATE:
                         stats["tick_updates"] += 1
                         stats["events"] += len(message.get("events", ()))
+
+                        if time.monotonic() >= measure_from:
+                            stats["bytes_measured"] += len(raw)
+                            stats["updates_measured"] += 1
+                            stats["update_max"] = max(stats["update_max"], len(raw))
+                            stats["update_sizes"].append(len(raw))
                     elif message["type"] in (proto.COMMAND_RESULT, proto.ERROR) and message.get("seq") in sent_at:
                         stats["command_ms"].append((time.monotonic() - sent_at.pop(message["seq"])) * 1000)
                         mine.extend(message.get("applied", ()))
@@ -584,7 +613,7 @@ def run_trial(config):
 
 def scenario_config(name, args, **override):
     base = dict(size=args.size, seed=args.seed, warmup=args.warmup, measure=args.measure, far_stride=args.far_stride, active_chunks=args.active_chunks,
-                sleep_ticks=args.sleep_ticks, rates=list(args.rate), max_p95_fraction=args.max_p95_fraction, pixels_per_bot=args.pixels_per_bot)
+                sleep_ticks=args.sleep_ticks, rates=list(args.rate), max_p95_fraction=args.max_p95_fraction, pixels_per_bot=args.pixels_per_bot, statics=args.statics, statics_view=args.statics_view)
 
     if name == "clients":
         base.update(bots=args.bots or 40)
@@ -673,6 +702,8 @@ def parse():
     parser.add_argument("--active-chunks", type=int, default=None)
     parser.add_argument("--sleep-ticks", type=int, default=None)
     parser.add_argument("--rate", action="append", default=[], metavar="KEY=NEAR[,FAR]")
+    parser.add_argument("--statics", type=int, default=0, help="inert entities (no traits, no needs) spread over the world")
+    parser.add_argument("--statics-view", type=int, default=0, help="inert entities placed inside each bot's view (what a client has to be told about)")
     args = parser.parse_args()
 
     if args.quick:

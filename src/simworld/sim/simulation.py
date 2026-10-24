@@ -81,6 +81,9 @@ class Simulation:
         pixel.position = Vec3(x, y, 0.0)
         self.systems.context.proximity.invalidate()  # the pixel is at its place now: the next near() sees it (9.7)
 
+        if not self.entity_manager.roster.visits(pixel):
+            self.systems.activity.moved(pixel)  # the loop never visits it, so it announces itself to the sleepers around it once, here
+
         if owner is not None:
             self.claim(owner, pixel)
 

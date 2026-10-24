@@ -1,12 +1,12 @@
 # Part 0 of 3: Entity Foundation (one cheap entity for everything)
 
-Build order: **0. Foundation (this file)**, then 1. Actions (`1_actions_todo.md`), 2. Items (`2_items_todo.md`), 3. Structures (`3_structures_todo.md`).
+Build order: **0. Foundation (this file)**, then 1. Items (`items_todo.md`), 2. Structures (`structures_todo.md`), 3. Actions (`actions_todo.md`).
 
 Goal: everything is an entity (units, items, blocks, trees), the base entity is as cheap as possible, and expensive systems only visit the entities that are flagged to use them. A wall, an item or a tree costs memory and nothing per tick; a unit that thinks costs what it costs today.
 
 Parts 1 and 2 of this file change only how the simulation loops (no changes to `Entity`), so they are low risk and give most of the speed. Part 3 is the big refactor of `Entity` itself and gives most of the memory saving. Do them in order and stop whenever the numbers are good enough.
 
-After this file, `2_items_todo.md` and `3_structures_todo.md` need a rewrite: items and structures become plain entities with a small component, not a separate "slim record" and not a separate block layer. Ask for that rewrite when Part 3 is done (or earlier, the plan below says what they will look like).
+After this file, items and structures become plain entities with a small component, not a separate "slim record" and not a separate block layer.
 
 Conventions: relative imports only, no comments or docstrings, longer lines over more lines, snake_case files, an `__init__.py` in every folder, pygame only in `client/`. Dependency direction `shared < world < content < sim < server`. Run every existing check, `check_sim_determinism` and `audit_determinism` after each step.
 
@@ -49,25 +49,25 @@ An entity is a small **base** plus optional **components**. A component exists o
 
 ## Part 0: Measure first
 
-- [ ] **0.1 A baseline workload with many inert entities**
+- [X] **0.1 A baseline workload with many inert entities**
   **Do:** add a `--statics N` option to `tools/profile_sim.py` and `tools/loadtest.py`: spawn N entities that have no traits and no needs (a stand-in for items and blocks), spread over the world, next to the normal units. Record, for N of 0, 5,000 and 20,000: tick time (p50 and p95), memory per entity (RSS before and after, or `tracemalloc`), and bytes sent per client per tick.
   **Done when:** the three numbers per N are written in `LOADTEST_RESULTS.md` under "Foundation baseline".
-- [ ] **0.2 List every place that visits all entities**
+- [X] **0.2 List every place that visits all entities**
   **Do:** `grep -rn "\.all()\|entities()\|for .* in .*entities" src` and make a table in the project layout doc: file, what it does, how often (every tick, on an event), and whether it can use an index instead. Expect at least: `SystemRunner.update`, `ProximityIndex` (rebuilt per tick), the replication diff, `rules.nearby`, `visibility`, `pick_entity` in commands, `activity`.
   **Done when:** the table exists and every row has a planned fix (a step number below, or "fine").
 
 ## Part 1: Membership sets (the `Entity` class does not change)
 
-- [ ] **1.1 The roster**
+- [X] **1.1 The roster**
   **Do:** `sim/core/roster.py`: a `Roster` with ordered membership per system (`thinkers`, `needy`, `statused`) and an `awake` set, all as insertion-ordered dicts (never a plain `set`, for determinism). API: `sync(entity)` recomputes which sets the entity belongs to from its current components, `drop(entity)`, `sleep(entity)`, `wake(entity)`, and `active_list()` returning the awake capable entities sorted by id (cached, rebuilt only when something changed). For now `sync` reads the existing fields: `thinkers` if `entity.traits` or `entity.task`, `needy` if `entity.needs`, `statused` if `entity.statuses`.
   **Done when:** `check_roster.py` (step 1.4) passes on a world built with the old `Entity`.
-- [ ] **1.2 Call `sync` at every change**
+- [X] **1.2 Call `sync` at every change**
   **Do:** call `roster.sync(entity)` at spawn, after traits change (blueprint apply, `edit_property`), when a need is added or removed, when a status is added or expires, and when a task starts or ends. Put these calls behind one function each (`add_need`, `add_status`...) so there is one place to fix.
   **Done when:** `grep` shows no code writing `entity.needs[...]`, `entity.statuses.append` or `entity.traits[...]` outside those functions (the consistency test in 1.4 catches the rest).
-- [ ] **1.3 The loop visits only the roster**
+- [X] **1.3 The loop visits only the roster**
   **Do:** in `SystemRunner.update`, replace `entities = self.entities()` with `self.roster.active_list()` for the per-entity phase. `cleanup_removed` still handles removals from the full manager and also calls `roster.drop`. Entities in no set are not visited at all (they are not aged, not asked for activity state, not given a think slot).
   **Done when:** with `--statics 20000` the tick time is within 1 ms of `--statics 0`, and every old check passes.
-- [ ] **1.4 The consistency check**
+- [X] **1.4 The consistency check**
   **Do:** `tests/sim/check_roster.py`: run random operations (spawn, add and remove a trait, add a need, add and expire a status, start and end a task, sleep, wake, kill), and after each batch rebuild the sets from scratch and assert they equal the live ones, in the same order. Assert that iteration is by id.
   **Done when:** it passes for 10,000 random operations on three seeds.
 - [ ] **1.5 Sleeping leaves the awake set**

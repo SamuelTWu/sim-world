@@ -64,6 +64,7 @@ class SystemRunner:
         entity = self.entity_manager.spawn_blueprint(blueprint, owner)
         self.behaviors.apply(entity)
         self.need_system.initialize(entity)
+        self.entity_manager.touch(entity)
         self.events.emit("entity_spawned", entity=entity)
         return entity
 
@@ -109,7 +110,7 @@ class SystemRunner:
         expired = [status for status in entity.statuses if status.age >= status.duration]
 
         if expired:
-            entity.statuses = [status for status in entity.statuses if status.age < status.duration]
+            self.entity_manager.set_statuses(entity, [status for status in entity.statuses if status.age < status.duration])
 
             for status in expired:
                 self.events.emit("status_expired", entity=entity, status=status)
@@ -134,8 +135,7 @@ class SystemRunner:
             if status == DONE:
                 self.need_system.completed(entity, task.name)
 
-            entity.task = None
-            entity.task_score = 0.0
+            self.entity_manager.set_task(entity, None, 0.0)
             self.events.emit("task_finished", entity=entity, task=task, status=status)
 
     def should_think(self, entity: Entity, delta_time: float) -> bool:
@@ -201,8 +201,7 @@ class SystemRunner:
             entity.task.cancel(entity, self.context)
             self.events.emit("task_interrupted", entity=entity, task=entity.task)
 
-        entity.task = task
-        entity.task_score = decision.score
+        self.entity_manager.set_task(entity, task, decision.score)
         self.events.emit("task_started", entity=entity, task=task)
 
     def cleanup_removed(self):
@@ -218,10 +217,10 @@ class SystemRunner:
             self.events.emit("entity_removed", entity=removed)
 
     def update(self, delta_time: float):
-        """One tick. Aging, the current task (with its terrain and collision tests) and removal run for every pixel every tick, always. The
+        """One tick. Only the roster is visited (sim/core/roster.py): entities with traits, a task, needs, statuses, a snap size or an owner; items, blocks and trees that have none of those cost nothing here. Aging, the current task (with its terrain and collision tests) and removal run for every pixel every tick, always. The
         needs, memory and thinking of a pixel, and the relationships, territory and stimuli of the world, run at the rates in activity.RATES
         (every tick unless the table says otherwise), with all the time that passed handed over when they do."""
-        entities = self.entities()
+        entities = [entity for entity in self.entity_manager.roster.active_list() if entity.alive]
         activity = self.activity
         tick = self.context.tick
         thinks = []

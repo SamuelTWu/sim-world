@@ -7,6 +7,8 @@
     python -m test.profile_sim --out sim.prof           # keep the raw profile (python -m pstats sim.prof, or snakeviz sim.prof)
     python -m test.profile_sim --far-stride 1 --sleep-ticks 0     # the same with 9.2 / 9.3 off, to see what they buy
     python -m test.profile_sim --rate needs=2,10 --rate think=1,4 # and with 9.4 rates
+    python -m test.profile_sim --statics 20000                  # plus 20,000 inert entities (no traits, no needs: a stand-in for items and blocks)
+    python -m test.profile_sim --statics-report 0,5000,20000    # tick time and memory per inert entity for each count, as a markdown table (entities_todo 0.1)
 
 It measures Simulation.step() only (the server's other phases, replication and sending, are in the 9.1 log line: use that to see which part of
 the tick is too slow, and this tool when it is the simulation). Nothing here changes the simulation: it builds a world like the checks do
@@ -35,6 +37,8 @@ import time
 from src.simworld.sim.core.sim_context import TILE_UNITS
 from src.simworld.sim.simulation import TICK_DT, Simulation
 from src.simworld.world.generator import GenerationSettings
+
+from .statics import spawn_statics, spawn_statics_measured
 
 BUDGET_MS = TICK_DT * 1000.0
 WARMUP_TICKS = 20
@@ -97,6 +101,9 @@ def build(pixels, size, owners, seed, args):
             if ground is not None and ground.can_walk_through():
                 sim.spawn_pixel(kinds[index % 2 * 2], None, tile[0] * TILE_UNITS + scatter.uniform(4, 28), tile[1] * TILE_UNITS + scatter.uniform(4, 28))   # runners and commanders (walkers), like loadtest.py's cluster
                 break
+
+    if getattr(args, "statics", 0):
+        spawn_statics(sim, args.statics, seed, size)
 
     for index in range(owners):
         if middle is None:
@@ -266,6 +273,20 @@ def scale_run(counts, args):
             print("\n  the tick did not grow with the number of pixels in this range")
 
 
+def statics_report(counts, args):
+    print(f"Foundation baseline ({args.pixels} pixels, {args.owners} player pixels, {args.size}x{args.size} tiles, {args.ticks} ticks each after {WARMUP_TICKS} warm-up):\n")
+    print("| inert entities | tick p50 ms | tick p95 ms | tick mean ms | bytes per inert entity |")
+    print("|---|---|---|---|---|")
+
+    for count in counts:
+        args.statics = 0
+        sim = build(args.pixels, args.size, args.owners, args.seed, args)
+        per_entity = spawn_statics_measured(sim, count, args.seed, args.size)
+        time_ticks(sim, WARMUP_TICKS)
+        stats = summarize(time_ticks(sim, args.ticks))
+        print(f"| {count} | {stats['p50']:.2f} | {stats['p95']:.2f} | {stats['mean']:.2f} | {per_entity:.0f} |" if count else f"| 0 | {stats['p50']:.2f} | {stats['p95']:.2f} | {stats['mean']:.2f} | - |")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Time and profile Simulation.step() (README 9.7)")
     parser.add_argument("--pixels", type=int, default=2000, help="unowned pixels spread over the world")
@@ -281,7 +302,13 @@ def main():
     parser.add_argument("--far-stride", type=int, default=None)
     parser.add_argument("--sleep-ticks", type=int, default=None)
     parser.add_argument("--rate", action="append", default=[], metavar="KEY=NEAR[,FAR]")
+    parser.add_argument("--statics", type=int, default=0, help="inert entities (no traits, no needs) spread over the world, next to the pixels")
+    parser.add_argument("--statics-report", default=None, metavar="COUNTS", help="comma separated counts, e.g. 0,5000,20000: print tick p50 / p95 and bytes per inert entity as a markdown table, then stop")
     args = parser.parse_args()
+
+    if args.statics_report:
+        statics_report([int(part) for part in args.statics_report.split(",")], args)
+        return
 
     if args.scale:
         print(f"Tick time against pixel count ({args.ticks} ticks each, {args.size}x{args.size} tiles, budget {BUDGET_MS:.0f} ms):")
